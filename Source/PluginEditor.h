@@ -154,69 +154,87 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        const auto bounds = getLocalBounds().toFloat().reduced (1.0f);
-        const float cornerSize = 4.0f;
+        const auto bounds = getLocalBounds().toFloat();
+        const float cx = bounds.getCentreX();
+        const float cy = bounds.getCentreY();
+        const float radius = 7.0f; // LEDレンズの基本半径 (直径14px)
 
-        if (intensity > 0.08f)
+        // 1. 発光時の多層グラデーション光彩・ブルーム演出 (Lookahead等と同系統の鮮烈なエレクトリックブルー)
+        if (intensity > 0.04f)
         {
-            // 点灯時：TameNoiseボタンと同系統の鮮烈なアンバー・自照式スイッチ発光
-            const float alpha = std::min (1.0f, intensity * 1.25f);
-            
-            juce::ColourGradient bg (
-                juce::Colour (0x78, 0x35, 0x0f).withAlpha (alpha * 0.75f), bounds.getX(), bounds.getY(),
-                juce::Colour (0x45, 0x1a, 0x03).withAlpha (alpha * 0.95f), bounds.getX(), bounds.getBottom(), false);
-            g.setGradientFill (bg);
-            g.fillRoundedRectangle (bounds, cornerSize);
+            const float actIntensity = std::min (1.0f, intensity * 1.3f);
 
-            // 発光枠線
-            g.setColour (juce::Colour (0xf5, 0x9e, 0x0b).withAlpha (alpha));
-            g.drawRoundedRectangle (bounds, cornerSize, 1.2f);
+            // Layer A: 外周の広域アンビエントブルーム (柔らかな光の漏れ・環境光)
+            const float bloomRadius = radius * 3.0f;
+            juce::ColourGradient bloomGrad (
+                juce::Colour (0x3b, 0x82, 0xf6).withAlpha (actIntensity * 0.38f), cx, cy,
+                juce::Colour (0x3b, 0x82, 0xf6).withAlpha (0.0f), cx + bloomRadius, cy, true);
+            g.setGradientFill (bloomGrad);
+            g.fillEllipse (cx - bloomRadius, cy - bloomRadius, bloomRadius * 2.0f, bloomRadius * 2.0f);
 
-            // インジケータードット (●)
-            const float dotX = bounds.getX() + 18.0f;
-            const float dotY = bounds.getCentreY();
-            const float dotR = 4.5f;
+            // Layer B: 中間オーラグロー (高彩度シアンの集中光)
+            const float auraRadius = radius * 1.85f;
+            juce::ColourGradient auraGrad (
+                juce::Colour (0x38, 0xbd, 0xf8).withAlpha (actIntensity * 0.72f), cx, cy,
+                juce::Colour (0x38, 0xbd, 0xf8).withAlpha (0.0f), cx + auraRadius, cy, true);
+            g.setGradientFill (auraGrad);
+            g.fillEllipse (cx - auraRadius, cy - auraRadius, auraRadius * 2.0f, auraRadius * 2.0f);
+        }
 
-            // ドット外周グロー
-            g.setColour (juce::Colour (0xfb, 0xbf, 0x24).withAlpha (alpha * 0.55f));
-            g.fillEllipse (dotX - dotR * 1.8f, dotY - dotR * 1.8f, dotR * 3.6f, dotR * 3.6f);
+        // 2. 金属ベゼルリング (パネルマウント部: 立体的なダークチタン外枠)
+        const float bezelRadius = radius + 2.4f;
+        juce::ColourGradient bezelGrad (
+            juce::Colour (0x3b, 0x43, 0x54), cx, cy - bezelRadius,
+            juce::Colour (0x17, 0x1b, 0x24), cx, cy + bezelRadius, false);
+        g.setGradientFill (bezelGrad);
+        g.fillEllipse (cx - bezelRadius, cy - bezelRadius, bezelRadius * 2.0f, bezelRadius * 2.0f);
 
-            // ドット本体 (白熱コア)
-            g.setColour (juce::Colour (0xfb, 0xbf, 0x24));
-            g.fillEllipse (dotX - dotR, dotY - dotR, dotR * 2.0f, dotR * 2.0f);
+        // ベゼル内側の彫り込みシャドウ (凹み感の演出)
+        g.setColour (juce::Colour (0x0f, 0x11, 0x18));
+        g.drawEllipse (cx - radius - 0.8f, cy - radius - 0.8f, (radius + 0.8f) * 2.0f, (radius + 0.8f) * 2.0f, 1.0f);
 
-            // "NOISE" テキスト
-            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-            g.setColour (juce::Colour (0xfe, 0xf3, 0xc7));
-            g.drawText ("NOISE", juce::roundToInt (dotX + dotR + 6.0f), 0, juce::roundToInt (bounds.getWidth() - (dotX + dotR + 8.0f)), getHeight(), juce::Justification::centredLeft, false);
+        // 3. LEDレンズ本体 & コアの発光グラデーション描画
+        if (intensity > 0.04f)
+        {
+            const float actIntensity = std::min (1.0f, intensity * 1.3f);
+
+            // レンズ内部のラジアル発光グラデーション (中心: シアン白熱 -> 外周: ディープサファイア)
+            juce::ColourGradient lensLit (
+                juce::Colour (0xba, 0xe6, 0xfd).interpolatedWith (juce::Colours::white, actIntensity * 0.7f), cx, cy - 0.5f,
+                juce::Colour (0x1d, 0x4e, 0xd8), cx + radius, cy + radius, true);
+            g.setGradientFill (lensLit);
+            g.fillEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f);
+
+            // 白熱超高輝度ホットスポット (ダイオード中心部)
+            const float coreRadius = radius * 0.45f;
+            juce::ColourGradient coreGrad (
+                juce::Colours::white.withAlpha (std::min (1.0f, actIntensity * 1.5f)), cx, cy - 0.5f,
+                juce::Colour (0x93, 0xc5, 0xfd).withAlpha (0.0f), cx + coreRadius * 1.5f, cy, true);
+            g.setGradientFill (coreGrad);
+            g.fillEllipse (cx - coreRadius * 1.5f, cy - coreRadius * 1.5f - 0.5f, coreRadius * 3.0f, coreRadius * 3.0f);
+
+            // 球面ガラスレンズ特有のスペキュラ反射光 (斜め上方のハイライト)
+            g.setColour (juce::Colours::white.withAlpha (std::min (0.90f, 0.45f + actIntensity * 0.5f)));
+            g.fillEllipse (cx - radius * 0.45f, cy - radius * 0.50f, radius * 0.42f, radius * 0.28f);
         }
         else
         {
-            // 消灯時：TameNoiseボタン等と同じシックな実機ダークスレート
-            g.setColour (juce::Colour (0x13, 0x16, 0x1f));
-            g.fillRoundedRectangle (bounds, cornerSize);
+            // 消灯時: 深いダークスレートレンズ (Lookahead消灯時と同色調)
+            juce::ColourGradient lensOff (
+                juce::Colour (0x1f, 0x26, 0x36), cx, cy - radius * 0.5f,
+                juce::Colour (0x11, 0x14, 0x1d), cx, cy + radius * 0.8f, false);
+            g.setGradientFill (lensOff);
+            g.fillEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f);
 
-            g.setColour (juce::Colour (0x26, 0x2b, 0x3a));
-            g.drawRoundedRectangle (bounds, cornerSize, 1.0f);
-
-            // 消灯ドット
-            const float dotX = bounds.getX() + 18.0f;
-            const float dotY = bounds.getCentreY();
-            const float dotR = 4.0f;
-
-            g.setColour (juce::Colour (0x33, 0x41, 0x55));
-            g.fillEllipse (dotX - dotR, dotY - dotR, dotR * 2.0f, dotR * 2.0f);
-
-            // 消灯テキスト
-            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-            g.setColour (juce::Colour (0x64, 0x74, 0x8b));
-            g.drawText ("NOISE", juce::roundToInt (dotX + dotR + 6.0f), 0, juce::roundToInt (bounds.getWidth() - (dotX + dotR + 8.0f)), getHeight(), juce::Justification::centredLeft, false);
+            // 微弱なガラス反射ハイライト
+            g.setColour (juce::Colours::white.withAlpha (0.12f));
+            g.drawEllipse (cx - radius + 1.0f, cy - radius + 1.0f, (radius - 1.0f) * 2.0f, (radius - 1.0f) * 2.0f, 0.8f);
+            g.fillEllipse (cx - radius * 0.45f, cy - radius * 0.50f, radius * 0.35f, radius * 0.22f);
         }
     }
 
 private:
     float intensity = 0.0f;
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TameNoiseLedComponent)
 };
 
 class AutoLevelerAudioProcessorEditor : public juce::AudioProcessorEditor,

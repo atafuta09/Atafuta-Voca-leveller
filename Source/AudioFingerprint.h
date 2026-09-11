@@ -171,7 +171,6 @@ public:
         accumZcr = 0.0;
         accumHighRatio = 0.0;
         smoothedBreathScore = 0.0f;
-        breathHoldCounter = 0;
     }
 
     void startLearnSibilance()
@@ -236,7 +235,6 @@ public:
         hasCustomNormal.store(false);
         hasPending.store(false);
         smoothedBreathScore = 0.0f;
-        breathHoldCounter = 0;
     }
 
     bool isLearning() const noexcept
@@ -299,15 +297,7 @@ public:
         if (res.rms < 0.0015f)
         {
             res.normalScore = 0.0f;
-            if (breathHoldCounter > 0)
-            {
-                breathHoldCounter--;
-                smoothedBreathScore *= 0.97f;
-            }
-            else
-            {
-                smoothedBreathScore *= 0.92f;
-            }
+            smoothedBreathScore *= 0.90f; // 静寂時は自然減衰
             res.breathScore = std::clamp(smoothedBreathScore, 0.0f, 1.0f);
             return res;
         }
@@ -371,38 +361,24 @@ public:
         float rawBrScore  = matchBreath(currentSpec, zcr, highRatio);
 
         // 6. 通常ボーカル対比 (Precision Vocal Masking):
-        // ブレス継続中はマスキングを緩和して途切れを防止
-        if (normalSim > 0.35f)
+        if (normalSim > 0.30f)
         {
-            const float maskIntensity = (breathHoldCounter > 0) ? 0.9f : 1.8f;
-            const float vocalMask = std::clamp(1.0f - (normalSim - 0.35f) * maskIntensity, 0.0f, 1.0f);
+            const float vocalMask = std::clamp(1.0f - (normalSim - 0.30f) * 1.8f, 0.0f, 1.0f);
             rawSibScore *= vocalMask;
             rawBrScore  *= vocalMask;
         }
 
-        // 7. ブレス前後を滑らかにつなぐ ホールド ＆ 適応型スムーザー
-        // ブレスが立ち上がったらホールドカウンターをセット (約160ms = 20フレーム維持して途切れを防止)
-        if (rawBrScore > 0.25f)
-        {
-            breathHoldCounter = 20; // 20 frames * 8ms = 160ms ホールド
-        }
-        else if (breathHoldCounter > 0)
-        {
-            breathHoldCounter--;
-            // ホールド中は急な落ち込みを防ぎ、滑らかに維持
-            rawBrScore = std::max(rawBrScore, smoothedBreathScore * 0.94f);
-        }
-
-        // アタック (素早く追従: 約25ms) と リリース (前後に滑らかに繋がる: 約150〜200ms)
-        const float alphaAtt = 0.75f;
-        const float alphaRel = (breathHoldCounter > 0) ? 0.04f : 0.08f;
+        // 7. ブレス専用 弾道スムーザー (Adaptive Ballistics Filter)
+        // ※ホールド機能は完全削除。歯擦音は即座に応答し、ブレスのみ滑らかなアタックとリリースで繋ぐ
+        const float alphaAtt = 0.85f; // ブレスのアタック（約20ms）
+        const float alphaRel = 0.08f; // ブレスのリリース（約120msで滑らかに通常歌声へ接続）
 
         if (rawBrScore > smoothedBreathScore)
             smoothedBreathScore += alphaAtt * (rawBrScore - smoothedBreathScore);
         else
             smoothedBreathScore += alphaRel * (rawBrScore - smoothedBreathScore);
 
-        res.sibilanceScore = rawSibScore;
+        res.sibilanceScore = rawSibScore; // 歯擦音はホールドなし・即時追従
         res.breathScore    = std::clamp(smoothedBreathScore, 0.0f, 1.0f);
         res.plosiveScore   = std::clamp(lowRatio * 2.2f, 0.0f, 1.0f);
 
@@ -698,7 +674,6 @@ public:
 
     // スムーザー用内部ステート
     float smoothedBreathScore = 0.0f;
-    int   breathHoldCounter   = 0;
 
     int accumFrames = 0;
     std::array<double, NUM_BANDS> accumSpectrum {};
