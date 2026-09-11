@@ -199,10 +199,16 @@ private:
     juce::ToggleButton lookaheadButton;
     juce::ToggleButton guiEnableButton;
 
-    // トップヘッダー内ボタン (BREATH, SIBILANCE, BYPASS)
-    juce::ToggleButton breathFilterButton;
-    juce::ToggleButton sibilanceFilterButton;
+    // トップヘッダー内ボタン (SC FILTER, BYPASS)
+    juce::ToggleButton scFilterButton;
     juce::ToggleButton bypassButton;
+
+    // TAME NOISE セクション (ON/OFF, LISTEN, AMOUNTノブ)
+    juce::ToggleButton tameNoiseButton;
+    juce::ToggleButton tameListenButton;
+    juce::Slider       tameAmountSlider;
+    juce::Label        tameAmountLabel;
+    juce::Label        tameAmountValueLabel;
 
     // トップヘッダー新設コンポーネント (プリセット、保存、ズーム、カラー、SNSリンク)
     juce::ComboBox   presetBox;
@@ -232,10 +238,12 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncSpeedAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> meterModeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   lookaheadAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   breathFilterAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   sibilanceFilterAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   guiEnableAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   scFilterAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   bypassAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   guiEnableAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   tameNoiseAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   tameListenAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   tameAmountAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AutoLevelerAudioProcessorEditor)
 };

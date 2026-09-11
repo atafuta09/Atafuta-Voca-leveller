@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 
 # ==============================================================================
-# Atafuta09Leveler - Vocal Dynamics Rider Plugin
+# Atafuta09Leveler - Vocal Dynamics Rider Plugin (v1.0.5)
+# With AI TameNoise Detector & Zero-Coloration Sidechain HPF
 # ==============================================================================
-project(Atafuta09Leveler VERSION 1.0.4 LANGUAGES C CXX)
+project(Atafuta09Leveler VERSION 1.0.5 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,6 +52,8 @@ juce_add_plugin(AutoLeveler
 
 # ソースコードファイルの指定
 target_sources(AutoLeveler PRIVATE
+    Source/AudioFingerprint.h
+    Source/ModernDarkLookAndFeel.h
     Source/PluginProcessor.h
     Source/PluginProcessor.cpp
     Source/PluginEditor.h

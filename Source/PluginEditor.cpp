@@ -744,24 +744,53 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     guiEnableAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::guiEnable, guiEnableButton);
 
-    // --- 8. トップヘッダー内ボタン (BREATH / SIBILANCE / BYPASS) ---
-    breathFilterButton.setButtonText ("BREATH");
-    addAndMakeVisible (breathFilterButton);
+    // --- 8. トップヘッダー内ボタン (SC FILTER / BYPASS) ---
+    scFilterButton.setButtonText ("SC FILTER");
+    scFilterButton.setTooltip ("Zero-coloration 100Hz HPF Sidechain Filter (Prevents vocal plosives & low-end pumping)");
+    addAndMakeVisible (scFilterButton);
 
-    breathFilterAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
-        audioProcessor.getAPVTS(), ParameterIDs::breathFilter, breathFilterButton);
-
-    sibilanceFilterButton.setButtonText ("SIBILANCE");
-    addAndMakeVisible (sibilanceFilterButton);
-
-    sibilanceFilterAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
-        audioProcessor.getAPVTS(), ParameterIDs::sibilanceFilter, sibilanceFilterButton);
+    scFilterAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        audioProcessor.getAPVTS(), ParameterIDs::scFilterEnable, scFilterButton);
 
     bypassButton.setButtonText ("BYPASS");
     addAndMakeVisible (bypassButton);
 
     bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::bypass, bypassButton);
+
+    // --- TAME NOISE セクション (ON/OFF, LISTEN, AMOUNTノブ) ---
+    tameNoiseButton.setButtonText ("TAME NOISE");
+    tameNoiseButton.setTooltip ("Enable AI Vocal Noise Suppression (Sibilance, Breath, Plosives)");
+    addAndMakeVisible (tameNoiseButton);
+
+    tameNoiseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        audioProcessor.getAPVTS(), ParameterIDs::tameNoiseEnable, tameNoiseButton);
+
+    tameListenButton.setButtonText ("LISTEN");
+    tameListenButton.setTooltip ("Solo monitor detected noise artifacts");
+    addAndMakeVisible (tameListenButton);
+
+    tameListenAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        audioProcessor.getAPVTS(), ParameterIDs::tameNoiseListen, tameListenButton);
+
+    tameAmountSlider.setSliderStyle (juce::Slider::RotaryVerticalDrag);
+    tameAmountSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    tameAmountSlider.setRange (0.0, 100.0, 0.5);
+    addAndMakeVisible (tameAmountSlider);
+
+    tameAmountLabel.setText ("TAME AMOUNT", juce::dontSendNotification);
+    tameAmountLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+    tameAmountLabel.setJustificationType (juce::Justification::centredLeft);
+    tameAmountLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
+    addAndMakeVisible (tameAmountLabel);
+
+    tameAmountValueLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+    tameAmountValueLabel.setJustificationType (juce::Justification::centredLeft);
+    tameAmountValueLabel.setColour (juce::Label::textColourId, juce::Colour (0x38, 0xbd, 0xf8));
+    addAndMakeVisible (tameAmountValueLabel);
+
+    tameAmountAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), ParameterIDs::tameNoiseAmount, tameAmountSlider);
 
     // --- 9. 右端 METERS パネル ＆ メーターモード切替 ---
     meterModeBox.addItem ("Peak",  1);
@@ -1025,6 +1054,9 @@ void AutoLevelerAudioProcessorEditor::timerCallback()
     const float curOutGain = static_cast<float>(outputGainSlider.getValue());
     outputGainValueLabel.setText ((curOutGain > 0.0f ? "+" : "") + juce::String (curOutGain, 1) + " dB", juce::dontSendNotification);
 
+    const float curTameAmount = static_cast<float>(tameAmountSlider.getValue());
+    tameAmountValueLabel.setText (juce::String (curTameAmount, 1) + "%", juce::dontSendNotification);
+
     // 4. Attack / Release 値の両方を表示 (ユーザー要望対応)
     const bool isSyncMode = (timingModeBox.getSelectedId() == 2);
     if (isSyncMode)
@@ -1100,7 +1132,7 @@ void AutoLevelerAudioProcessorEditor::paint (juce::Graphics& g)
         // バージョン表記 (Ver 1.04)
         g.setColour (juce::Colour (0x64, 0x74, 0x8b));
         g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-        g.drawText ("Ver 1.04", 175, 0, 60, 42, juce::Justification::centredLeft);
+        g.drawText ("Ver 1.05", 175, 0, 60, 42, juce::Justification::centredLeft);
     }
     else
     {
@@ -1137,7 +1169,7 @@ void AutoLevelerAudioProcessorEditor::paint (juce::Graphics& g)
         // バージョン表記 (Ver 1.04)
         g.setColour (juce::Colour (0x64, 0x74, 0x8b));
         g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-        g.drawText ("Ver 1.04", 175, 0, 60, 42, juce::Justification::centredLeft);
+        g.drawText ("Ver 1.05", 175, 0, 60, 42, juce::Justification::centredLeft);
     }
 }
 
@@ -1148,10 +1180,9 @@ void AutoLevelerAudioProcessorEditor::resized()
     // 1. トップヘッダー (高さ42px: ロゴ、バージョン、X/YT、COLOR、プリセット+SAVE、ズーム、フィルター、BYPASS)
     auto headerArea = bounds.removeFromTop (42);
 
-    // 右端: BYPASS, SIBILANCE, BREATH
-    bypassButton.setBounds          (headerArea.removeFromRight (82).reduced (4, 9));
-    sibilanceFilterButton.setBounds (headerArea.removeFromRight (98).reduced (4, 9));
-    breathFilterButton.setBounds    (headerArea.removeFromRight (90).reduced (4, 9));
+    // 右端: BYPASS, SC FILTER
+    bypassButton.setBounds   (headerArea.removeFromRight (82).reduced (4, 9));
+    scFilterButton.setBounds (headerArea.removeFromRight (96).reduced (4, 9));
 
     // 左側: ロゴ(0~170px) + Ver 1.04(175~235px) の直後
     auto leftHeader = headerArea.removeFromLeft (375);
@@ -1257,9 +1288,28 @@ void AutoLevelerAudioProcessorEditor::resized()
     meterPanel.removeFromTop (6);
     slimMeterComponent.setBounds (meterPanel);
 
-    // --- C. 中央 WAVEFORM DISPLAY (残り幅) ---
+    // --- C. 中央 WAVEFORM DISPLAY & TAME NOISE STRIP (残り幅) ---
     mainBody.removeFromRight (10); // ギャップ
+
+    auto tameStrip = mainBody.removeFromBottom (48);
+    mainBody.removeFromBottom (6); // ギャップ
     waveformComponent.setBounds (mainBody);
+
+    // TAME NOISE ストリップのレイアウト
+    auto tameNoiseBtnArea = tameStrip.removeFromLeft (110).reduced (2, 9);
+    tameNoiseButton.setBounds (tameNoiseBtnArea);
+
+    auto tameListenBtnArea = tameStrip.removeFromLeft (85).reduced (2, 9);
+    tameListenButton.setBounds (tameListenBtnArea);
+
+    tameStrip.removeFromLeft (16); // スペーサー
+    auto amountArea = tameStrip.removeFromLeft (150);
+    auto knobBox = amountArea.removeFromLeft (44).reduced (0, 2);
+    tameAmountSlider.setBounds (knobBox);
+
+    auto amountLabels = amountArea.reduced (4, 2);
+    tameAmountLabel.setBounds      (amountLabels.removeFromTop (20));
+    tameAmountValueLabel.setBounds (amountLabels.removeFromTop (18));
 
     syncTargetSliderLayout();
 }

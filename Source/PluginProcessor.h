@@ -7,6 +7,7 @@
  #include <juce_dsp/juce_dsp.h>
 #endif
 
+#include "AudioFingerprint.h"
 #include <vector>
 #include <atomic>
 #include <cmath>
@@ -19,19 +20,22 @@ namespace ParameterIDs
     inline constexpr auto speed           = "speed";
     inline constexpr auto outputGain      = "output_gain";
     inline constexpr auto lookaheadEnable = "lookahead_enable";
-    inline constexpr auto breathFilter    = "breath_filter";
-    inline constexpr auto sibilanceFilter = "sibilance_filter";
     inline constexpr auto detectionMode   = "detection_mode";
     inline constexpr auto timingMode      = "timing_mode";
     inline constexpr auto syncSpeed       = "sync_speed";
     inline constexpr auto meterMode       = "meter_mode";
     inline constexpr auto guiEnable       = "gui_enable";
     inline constexpr auto bypass          = "bypass";
+
+    // TameNoise & サイドチェインフィルター新パラメータ
+    inline constexpr auto tameNoiseEnable = "tame_noise_enable";
+    inline constexpr auto tameNoiseListen = "tame_noise_listen";
+    inline constexpr auto tameNoiseAmount = "tame_noise_amount";
+    inline constexpr auto scFilterEnable  = "sc_filter_enable";
 }
 
 /**
  * UI描画用データポイント構造体
- * ダウンサンプリングされた波形RMS値およびゲイン補正量を保持します
  */
 struct VisualDataPoint
 {
@@ -64,8 +68,9 @@ struct Preset
     float speed = 50.0f;
     float outGain = 0.0f;
     bool  lookahead = true;
-    bool  breathFilter = false;
-    bool  sibilanceFilter = false;
+    bool  tameNoise = true;
+    float tameAmount = 30.0f;
+    bool  scFilter = true;
     int   detectionMode = 0; // 0: RMS, 1: Peak
     int   timingMode = 0;    // 0: Free, 1: Sync
     int   syncSpeed = 1;     // 0: Fast, 1: Mid, 2: Slow
@@ -105,7 +110,7 @@ public:
 
     juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts; }
 
-    // UI連携用ロックフリーFIFOインターフェース
+    // UI波形描画用FIFOインターフェース
     int readVisualData (VisualDataPoint* destination, int maxPointsToRead);
 
     // メーター用リアルタイム値取得 (Peak, RMS, VU)
@@ -118,6 +123,12 @@ public:
     float getLatestInputVu()    const noexcept { return latestInputVu.load (std::memory_order_relaxed); }
     float getLatestOutputVu()   const noexcept { return latestOutputVu.load (std::memory_order_relaxed); }
 
+    // TameNoise リアルタイム値取得
+    float getTameSibilanceScore() const noexcept { return tameNoiseSibilanceScore.load (std::memory_order_relaxed); }
+    float getTameBreathScore()    const noexcept { return tameNoiseBreathScore.load (std::memory_order_relaxed); }
+    float getTameNormalScore()    const noexcept { return tameNoiseNormalScore.load (std::memory_order_relaxed); }
+    bool  isTameNoiseTriggered()   const noexcept { return tameNoiseTrigger.load (std::memory_order_relaxed); }
+
     // ホストBPMの取得
     float getCurrentBpm() const noexcept { return currentBpm.load (std::memory_order_relaxed); }
 
@@ -129,7 +140,7 @@ public:
     void loadUserPresets();
     void saveUserPresetsToFile();
 
-    // Speed値、Timingモード (Free / BPM Sync)、SyncSpeed (Fast:0, Mid:1, Slow:2) からAttack/Release時定数を計算
+    // Speed値、Timingモード (Free / BPM Sync)、SyncSpeed (Fast:0, Mid:1, Slow:2) からAttack/Release時定数計算
     static inline TimingInfo calculateTiming (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm) noexcept
     {
         TimingInfo info;
@@ -148,10 +159,10 @@ public:
         }
         else
         {
-            // BPM Sync モード: Fast(0), Mid(1), Slow(2) の三段階
+            // BPM Sync モード: Fast(0), Mid(1), Slow(2)
             switch (syncSpeedIndex)
             {
-                case 0: // Fast: Attack 1/64 (quarter/16), Release 1/16 (quarter/4)
+                case 0:
                     info.attackMs  = quarterNoteMs * (1.0f / 16.0f);
                     info.releaseMs = quarterNoteMs * (1.0f / 4.0f);
                     info.attackLabel  = "1/64 (" + juce::String (juce::roundToInt (info.attackMs)) + "ms)";
@@ -159,7 +170,7 @@ public:
                     info.modeName     = "Fast";
                     break;
 
-                case 2: // Slow: Attack 1/16 (quarter/4), Release 1/4 (quarter*1)
+                case 2:
                     info.attackMs  = quarterNoteMs * (1.0f / 4.0f);
                     info.releaseMs = quarterNoteMs * 1.0f;
                     info.attackLabel  = "1/16 (" + juce::String (juce::roundToInt (info.attackMs)) + "ms)";
@@ -167,7 +178,7 @@ public:
                     info.modeName     = "Slow";
                     break;
 
-                case 1: // Mid (デフォルト): Attack 1/32 (quarter/8), Release 1/8 (quarter/2)
+                case 1:
                 default:
                     info.attackMs  = quarterNoteMs * (1.0f / 8.0f);
                     info.releaseMs = quarterNoteMs * 0.5f;
@@ -187,21 +198,24 @@ private:
 
     juce::AudioProcessorValueTreeState apvts;
 
-    // パラメーター参照ポインタ (オーディオスレッド用)
+    // パラメータポインタ
     std::atomic<float>* inputGainParam       = nullptr;
     std::atomic<float>* targetLevelParam     = nullptr;
     std::atomic<float>* rangeParam           = nullptr;
     std::atomic<float>* speedParam           = nullptr;
     std::atomic<float>* outputGainParam      = nullptr;
     std::atomic<float>* lookaheadEnableParam = nullptr;
-    std::atomic<float>* breathFilterParam    = nullptr;
-    std::atomic<float>* sibilanceFilterParam = nullptr;
     std::atomic<float>* detectionModeParam   = nullptr;
     std::atomic<float>* timingModeParam      = nullptr;
     std::atomic<float>* syncSpeedParam       = nullptr;
     std::atomic<float>* meterModeParam       = nullptr;
     std::atomic<float>* guiEnableParam       = nullptr;
     std::atomic<float>* bypassParam          = nullptr;
+
+    std::atomic<float>* tameNoiseEnableParam = nullptr;
+    std::atomic<float>* tameNoiseListenParam = nullptr;
+    std::atomic<float>* tameNoiseAmountParam = nullptr;
+    std::atomic<float>* scFilterEnableParam  = nullptr;
 
     // プリセット管理
     std::vector<Preset> presets;
@@ -211,15 +225,37 @@ private:
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedInputGainDb;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedOutputGainDb;
 
-    // Lookahead ディレイバッファ
+    // Lookahead ディレイバッファ (原音スルー用)
     juce::AudioBuffer<float> delayBuffer;
     int delayBufferSize = 0;
     int delayBufferWritePos = 0;
     int lookaheadSamples = 0;
 
-    // ブレス除去 (HPF 150Hz) および 歯擦音除去 (LPF 4000Hz) 用サイドチェーンフィルター
-    juce::dsp::IIR::Filter<float> sidechainHPF;
-    juce::dsp::IIR::Filter<float> sidechainLPF;
+    // 音質変化ゼロのサイドチェイン検出専用 HPF (100Hz)
+    juce::dsp::IIR::Filter<float> sidechainDetectorHPF;
+
+    // TameNoise AI 検知エンジン (87データ事前学習済み)
+    AtafutaAudio::VocaNoiseLearnner::AudioFingerprintEngine tameNoiseEngine;
+
+    // 16kHz リサンプラー用
+    static constexpr double TAME_INTERNAL_SR = 16000.0;
+    static constexpr int TAME_BLOCK_SIZE     = 512;
+    static constexpr int TAME_HOP_SIZE       = 128;
+    std::vector<float> tameRingBuffer16k;
+    int tameRingWritePos = 0;
+    int tameSamplesSinceLastAnalysis = 0;
+    double tameResampleRatio = 1.0;
+    double tameResamplePhase = 0.0;
+    float tameLastDawSample = 0.0f;
+
+    // TameNoise ソロ試聴用スムージングゲイン
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> tameAuditionGain;
+
+    // TameNoise UI 表示用 Atomic
+    std::atomic<float> tameNoiseSibilanceScore { 0.0f };
+    std::atomic<float> tameNoiseBreathScore    { 0.0f };
+    std::atomic<float> tameNoiseNormalScore    { 0.0f };
+    std::atomic<bool>  tameNoiseTrigger        { false };
 
     // ボーカルオートレベラー DSPステート
     float fastEnvelopeRms = 0.0f;
@@ -249,7 +285,7 @@ private:
     juce::AbstractFifo visualFifo { fifoCapacity };
     std::vector<VisualDataPoint> visualFifoBuffer;
 
-    // UI用ダウンサンプリング (滑らかな描画のため約100Hzで送信)
+    // UI用ダウンサンプリング
     int downsampleInterval = 480;
     int downsampleCounter = 0;
     float inputAccumSumSquares = 0.0f;
