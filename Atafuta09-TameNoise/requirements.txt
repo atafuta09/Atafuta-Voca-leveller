@@ -1,0 +1,12 @@
+# Atafuta09-TameNoise (VocalArtifactDetector) 依存パッケージ
+torch
+torchaudio
+transformers
+datasets
+soundfile
+librosa
+onnx
+onnxruntime
+scipy
+numpy
+tqdm

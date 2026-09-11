@@ -1,0 +1,28 @@
+# Build outputs
+build/
+build_ninja/
+CMakeFiles/
+*.dir/
+CMakeCache.txt
+cmake_install.cmake
+
+# Artifacts & Binaries
+*.lib
+*.exp
+*.obj
+*.pdb
+*.ilk
+*.vst3
+*.exe
+
+# Python Virtual Environment & Caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE & Editor files
+.vs/
+*.slnx
+*.suo
+*.user
