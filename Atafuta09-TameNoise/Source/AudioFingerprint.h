@@ -133,6 +133,24 @@ inline const AcousticProfile female_learned_breath_2 = {
       0.380797f, 0.222898f, 0.286840f, 0.475893f, 0.375982f, 0.280412f, 0.250025f, 0.171123f }
 };
 
+
+inline juce::String getDefaultLearnedDataDir()
+{
+    // 1. プロジェクト開発フォルダが存在すれば最優先
+    juce::File devDir("D:/Atafuta09PluginBuild/Atafuta Vocal leveler/Atafuta09-TameNoise/learned_data");
+    if (devDir.exists() && devDir.isDirectory())
+        return devDir.getFullPathName();
+
+    // 2. なければ %APPDATA%/AtafutaAudio/VocaNoise/learned_data
+    auto appData = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                       .getChildFile("AtafutaAudio")
+                       .getChildFile("VocaNoise")
+                       .getChildFile("learned_data");
+    if (!appData.exists())
+        appData.createDirectory();
+    return appData.getFullPathName();
+}
+
 class AudioFingerprintEngine {
 public:
     AudioFingerprintEngine()
@@ -229,6 +247,16 @@ public:
     bool isLearningSibilance() const noexcept { return learningSibilance.load(std::memory_order_relaxed); }
     bool isLearningBreath() const noexcept    { return learningBreath.load(std::memory_order_relaxed); }
     bool isLearningNormal() const noexcept    { return learningNormal.load(std::memory_order_relaxed); }
+    float getLearningProgress() const noexcept
+    {
+        if (learningSibilance.load(std::memory_order_relaxed))
+            return std::min(1.0f, static_cast<float>(accumFrames) / 75.0f);
+        if (learningBreath.load(std::memory_order_relaxed))
+            return std::min(1.0f, static_cast<float>(accumFrames) / 95.0f);
+        if (learningNormal.load(std::memory_order_relaxed))
+            return std::min(1.0f, static_cast<float>(accumFrames) / 120.0f);
+        return 0.0f;
+    }
     bool isPendingConfirmation() const noexcept { return hasPending.load(std::memory_order_relaxed); }
     int getPendingClassType() const noexcept { return pendingClass.load(std::memory_order_relaxed); }
 
@@ -438,19 +466,19 @@ private:
         if (learningSibilance.load(std::memory_order_relaxed) && rms > 0.006f)
         {
             accumulateFrame(spec, zcr, highRatio);
-            if (accumFrames >= 32)
+            if (accumFrames >= 75) // 延長: 約 0.60 秒 (旧: 32 frames = 0.25s)
                 finalizePending(1); // Sibilance
         }
         else if (learningBreath.load(std::memory_order_relaxed) && rms > 0.003f && rms < 0.08f)
         {
             accumulateFrame(spec, zcr, highRatio);
-            if (accumFrames >= 28)
+            if (accumFrames >= 95) // 延長: 約 0.76 秒 (旧: 28 frames = 0.22s)
                 finalizePending(2); // Breath
         }
         else if (learningNormal.load(std::memory_order_relaxed) && rms > 0.010f)
         {
             accumulateFrame(spec, zcr, highRatio);
-            if (accumFrames >= 35)
+            if (accumFrames >= 120) // 延長: 約 0.96 秒 (旧: 35 frames = 0.28s)
                 finalizePending(3); // Normal Vocal
         }
     }
@@ -510,6 +538,79 @@ private:
     }
 
 public:
+    
+    std::atomic<int> totalUserLoaded { 0 };
+
+public:
+    int getTotalNormalProfiles() const noexcept    { return static_cast<int>(normalVocalBank.size()); }
+    int getTotalSibilanceProfiles() const noexcept { return static_cast<int>(sibilanceBank.size()); }
+    int getTotalBreathProfiles() const noexcept    { return static_cast<int>(breathBank.size()); }
+    int getTotalUserLoaded() const noexcept        { return totalUserLoaded.load(std::memory_order_relaxed); }
+
+    int loadUserProfilesFromDirectory(const juce::String& baseDataDir)
+    {
+        int loadedCount = 0;
+        try {
+            juce::File baseDir(baseDataDir);
+            if (!baseDir.exists()) return 0;
+
+            const juce::StringArray subDirs = { "female", "male" };
+            for (const auto& subDirName : subDirs)
+            {
+                juce::File subDir = baseDir.getChildFile(subDirName);
+                if (!subDir.isDirectory()) continue;
+
+                juce::Array<juce::File> jsonFiles;
+                subDir.findChildFiles(jsonFiles, juce::File::findFiles, false, "*.json");
+
+                for (const auto& f : jsonFiles)
+                {
+                    auto result = juce::JSON::parse(f);
+                    if (!result.isObject()) continue;
+
+                    auto* obj = result.getDynamicObject();
+                    if (obj == nullptr) continue;
+
+                    juce::String cls = obj->getProperty("class").toString().toLowerCase();
+                    float zcr = static_cast<float>(obj->getProperty("zcr"));
+                    float highRatio = static_cast<float>(obj->getProperty("highRatio"));
+                    auto specVar = obj->getProperty("spectrum");
+
+                    if (!specVar.isArray()) continue;
+                    auto* specArr = specVar.getArray();
+                    if (specArr == nullptr || specArr->size() != NUM_BANDS) continue;
+
+                    AcousticProfile prof;
+                    prof.zcr = zcr;
+                    prof.highRatio = highRatio;
+                    prof.isCustom = true;
+                    for (int b = 0; b < NUM_BANDS; ++b)
+                    {
+                        prof.spectrum[b] = static_cast<float>((*specArr)[b]);
+                    }
+
+                    if (cls.contains("normal"))
+                    {
+                        normalVocalBank.push_back(prof);
+                        loadedCount++;
+                    }
+                    else if (cls.contains("sibilance") || cls.contains("sib"))
+                    {
+                        sibilanceBank.push_back(prof);
+                        loadedCount++;
+                    }
+                    else if (cls.contains("breath"))
+                    {
+                        breathBank.push_back(prof);
+                        loadedCount++;
+                    }
+                }
+            }
+        } catch (...) {}
+        totalUserLoaded.store(loadedCount);
+        return loadedCount;
+    }
+
     int exportActiveProfiles(const juce::String& baseDataDir, const juce::String& gender = "female")
     {
         int count = 0;

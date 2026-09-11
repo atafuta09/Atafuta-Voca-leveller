@@ -59,6 +59,7 @@ public:
     bool isLearningSib() const noexcept       { return fingerprintEngine.isLearningSibilance(); }
     bool isLearningBr() const noexcept        { return fingerprintEngine.isLearningBreath(); }
     bool isLearningNorm() const noexcept      { return fingerprintEngine.isLearningNormal(); }
+    float getLearningProgress() const noexcept { return fingerprintEngine.getLearningProgress(); }
     bool isPendingConfirm() const noexcept    { return fingerprintEngine.isPendingConfirmation(); }
     int  getPendingClass() const noexcept     { return fingerprintEngine.getPendingClassType(); }
 
@@ -66,6 +67,7 @@ public:
     bool hasCustomBr() const noexcept         { return fingerprintEngine.hasCustomBrProfile(); }
     bool hasCustomNorm() const noexcept       { return fingerprintEngine.hasCustomNormProfile(); }
     int  getExportCount() const noexcept      { return fingerprintEngine.getExportCount(); }
+    int  getUserProfileCount() const noexcept { return fingerprintEngine.getTotalUserLoaded(); }
 
     // UI メーター用のスレッドセーフな値
     float getNormalScore() const noexcept    { return meterNormal.load(std::memory_order_relaxed); }

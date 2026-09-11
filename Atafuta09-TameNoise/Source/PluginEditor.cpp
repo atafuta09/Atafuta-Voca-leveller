@@ -1,6 +1,6 @@
 // ==============================================================================
 // PluginEditor.cpp
-// Atafuta09 VocaNoise Learnner: 音響プロファイル学習 & 男女別保存 UI v1.3.1
+// Atafuta09 VocaNoise Learnner: 音響プロファイル学習 & 男女別保存 UI v1.3.2
 // ==============================================================================
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
@@ -193,7 +193,12 @@ void Atafuta09VocaNoiseLearnnerAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions(15.0f).withStyle("Bold"));
-    g.drawText("ATAFUTA09 VOCANOISE LEARNNER v1.3.1", 20, 0, 400, 46, juce::Justification::centredLeft);
+    g.drawText("ATAFUTA09 VOCANOISE LEARNNER v1.3.2", 20, 0, 350, 46, juce::Justification::centredLeft);
+
+    const int userLoaded = audioProcessor.getUserProfileCount();
+    g.setColour(juce::Colour(0xff38bdf8));
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.drawText("87 Base + " + juce::String(userLoaded) + " User Profiles", getWidth() - 260, 0, 240, 46, juce::Justification::centredRight);
 
     // 4 連メーター
     const int meterY = 56;
@@ -228,9 +233,10 @@ void Atafuta09VocaNoiseLearnnerAudioProcessorEditor::paint(juce::Graphics& g)
 
         if (isLearning)
         {
+            const int pct = juce::roundToInt(audioProcessor.getLearningProgress() * 100.0f);
             const bool blink = (blinkPhase < 15);
-            g.setColour(blink ? juce::Colours::red : juce::Colours::white);
-            g.drawText("LEARNING...", x, meterY + meterH - 18, meterW, 14, juce::Justification::centred);
+            g.setColour(blink ? juce::Colour(0xfff87171) : juce::Colours::white);
+            g.drawText("LEARNING (" + juce::String(pct) + "%)", x, meterY + meterH - 18, meterW, 14, juce::Justification::centred);
         }
         else
         {

@@ -40,6 +40,10 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     presets.push_back ({ "Broadcast Rider", 0.0f, -14.0f, 5.0f, 45.0f, 0.0f, true, true, 30.0f, true, 0, 1, 1 });
 
     loadUserPresets();
+
+    // AI TameNoise 検出器の初期化 ＆ ユーザー学習プロファイルの自動ロード
+    const auto learnedDir = AtafutaAudio::VocaNoiseLearnner::getDefaultLearnedDataDir();
+    tameNoiseEngine.loadUserProfilesFromDirectory(learnedDir);
 }
 
 AutoLevelerAudioProcessor::~AutoLevelerAudioProcessor()

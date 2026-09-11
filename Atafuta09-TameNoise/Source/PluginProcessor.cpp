@@ -19,23 +19,13 @@ Atafuta09VocaNoiseLearnnerAudioProcessor::Atafuta09VocaNoiseLearnnerAudioProcess
     detectPlosiveParam   = apvts.getRawParameterValue("detectPlosive");
     detectBreathParam    = apvts.getRawParameterValue("detectBreath");
 
-    juce::File primaryDir("D:/Atafuta09PluginBuild/Atafuta Vocal leveler/Atafuta09-TameNoise/learned_data");
-    if (primaryDir.getParentDirectory().exists())
-    {
-        primaryDir.createDirectory();
-        learnedDataDir = primaryDir.getFullPathName();
-    }
-    else
-    {
-        auto fallbackDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-                               .getChildFile("Atafuta09VocaNoiseLearnner")
-                               .getChildFile("learned_data");
-        fallbackDir.createDirectory();
-        learnedDataDir = fallbackDir.getFullPathName();
-    }
+    learnedDataDir = getDefaultLearnedDataDir();
     juce::File(learnedDataDir).createDirectory();
     juce::File(learnedDataDir).getChildFile("female").createDirectory();
     juce::File(learnedDataDir).getChildFile("male").createDirectory();
+
+    // 起動時に保存済み全JSONプロファイルを自動ロード
+    fingerprintEngine.loadUserProfilesFromDirectory(learnedDataDir);
 }
 
 Atafuta09VocaNoiseLearnnerAudioProcessor::~Atafuta09VocaNoiseLearnnerAudioProcessor()
