@@ -792,6 +792,29 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     tameAmountAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::tameNoiseAmount, tameAmountSlider);
 
+    // TAME RELEASE ノブ (10ms ~ 500ms 調整ノブ ＆ ms数値表示)
+    tameReleaseSlider.setSliderStyle (juce::Slider::RotaryVerticalDrag);
+    tameReleaseSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    tameReleaseSlider.setRange (10.0, 500.0, 1.0);
+    addAndMakeVisible (tameReleaseSlider);
+
+    tameReleaseLabel.setText ("TAME RELEASE", juce::dontSendNotification);
+    tameReleaseLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+    tameReleaseLabel.setJustificationType (juce::Justification::centredLeft);
+    tameReleaseLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
+    addAndMakeVisible (tameReleaseLabel);
+
+    tameReleaseValueLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+    tameReleaseValueLabel.setJustificationType (juce::Justification::centredLeft);
+    tameReleaseValueLabel.setColour (juce::Label::textColourId, juce::Colour (0x38, 0xbd, 0xf8));
+    addAndMakeVisible (tameReleaseValueLabel);
+
+    tameReleaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), ParameterIDs::tameNoiseRelease, tameReleaseSlider);
+
+    // TameNoise 検出専用 LED インジケーター
+    addAndMakeVisible (tameNoiseLed);
+
     // --- 9. 右端 METERS パネル ＆ メーターモード切替 ---
     meterModeBox.addItem ("Peak",  1);
     meterModeBox.addItem ("RMS",   2);
@@ -1055,7 +1078,13 @@ void AutoLevelerAudioProcessorEditor::timerCallback()
     outputGainValueLabel.setText ((curOutGain > 0.0f ? "+" : "") + juce::String (curOutGain, 1) + " dB", juce::dontSendNotification);
 
     const float curTameAmount = static_cast<float>(tameAmountSlider.getValue());
-    tameAmountValueLabel.setText (juce::String (curTameAmount, 1) + "%", juce::dontSendNotification);
+    tameAmountValueLabel.setText (juce::String (juce::roundToInt (curTameAmount)) + "%", juce::dontSendNotification);
+
+    const float curTameRelease = static_cast<float>(tameReleaseSlider.getValue());
+    tameReleaseValueLabel.setText (juce::String (juce::roundToInt (curTameRelease)) + " ms", juce::dontSendNotification);
+
+    // 専用 LED ライトのリアルタイム点灯更新
+    tameNoiseLed.setIntensity (audioProcessor.getTameNoiseLedIntensity());
 
     // 4. Attack / Release 値の両方を表示 (ユーザー要望対応)
     const bool isSyncMode = (timingModeBox.getSelectedId() == 2);
@@ -1209,15 +1238,17 @@ void AutoLevelerAudioProcessorEditor::resized()
     // 2. メインボディ (パディング10px)
     auto mainBody = bounds.reduced (10);
 
-    // --- A. 左側 CONTROL PANEL (幅285px: 上下バランスの黄金比率レイアウト) ---
+    // ユーザー要望：LOOKAHEAD, GUI RENDER と TAME NOISE 等を完全に同じ高さに合わせた最下部ストリップ (高さ 44px)
+    auto bottomRow = mainBody.removeFromBottom (44);
+    mainBody.removeFromBottom (8); // 下部マージン
+
+    // --- A. 左側 CONTROL PANEL (幅285px) ---
     auto ctrlPanel = mainBody.removeFromLeft (285);
 
-    // 下部フッタートグル (高さ 28px)
-    auto footerToggles = ctrlPanel.removeFromBottom (28);
-    lookaheadButton.setBounds (footerToggles.removeFromLeft (145).reduced (2, 2));
-    guiEnableButton.setBounds (footerToggles.reduced (2, 2));
-
-    ctrlPanel.removeFromBottom (12); // フッター上の調和マージン (残り高さ 478px)
+    // 最下部ストリップの左側エリア (幅 285px): LOOKAHEAD と GUI RENDER を美しく配置
+    auto leftFooter = bottomRow.removeFromLeft (285);
+    lookaheadButton.setBounds (leftFooter.removeFromLeft (142).reduced (2, 6));
+    guiEnableButton.setBounds (leftFooter.reduced (2, 6));
 
     // 上部コントロールエリア (左右2分割)
     // 右サブ列: TARGET LEVEL フェーダー (幅70px: トラック内メーター統合型)
@@ -1225,7 +1256,7 @@ void AutoLevelerAudioProcessorEditor::resized()
     auto targetCol = ctrlPanel.removeFromRight (targetColW);
     ctrlPanel.removeFromRight (10); // 列間ギャップ
 
-    // [左サブ列 (幅 205px, 有効高さ 478px)]
+    // [左サブ列 (幅 205px)]
     // 1段目: SPEED & RANGE ノブセクション (高さ152px)
     auto knobRow = ctrlPanel.removeFromTop (152);
     const int halfW = knobRow.getWidth() / 2;
@@ -1258,10 +1289,10 @@ void AutoLevelerAudioProcessorEditor::resized()
 
     ctrlPanel.removeFromTop (14); // セクション間マージン
 
-    // 3段目: DETECTOR & TIMING セレクターセクション (残り高さ 108px を美しく充填)
+    // 3段目: DETECTOR & TIMING セレクターセクション (残り高さを美しく充填)
     auto selRow = ctrlPanel;
     const int selRowH = 34;
-    selRow.removeFromTop (13); // 上部均等パディング
+    selRow.removeFromTop (10);
 
     auto detSec = selRow.removeFromTop (selRowH).reduced (2, 1);
     detectionModeLabel.setBounds (detSec.removeFromLeft (70));
@@ -1273,7 +1304,7 @@ void AutoLevelerAudioProcessorEditor::resized()
     timingModeLabel.setBounds (timingSec.removeFromLeft (70));
     timingModeBox.setBounds   (timingSec);
 
-    // [右サブ列: TARGET LEVEL 縦長フェーダー (下端ラインを左サブ列と完全に整列)]
+    // [右サブ列: TARGET LEVEL 縦長フェーダー]
     targetLevelLabel.setBounds      (targetCol.removeFromTop (24));
     targetLevelValueLabel.setBounds (targetCol.removeFromTop (18));
     targetCol.removeFromTop (6);
@@ -1281,6 +1312,7 @@ void AutoLevelerAudioProcessorEditor::resized()
 
     // --- B. 右側 METERS パネル (幅88px) ---
     mainBody.removeFromLeft (10); // ギャップ
+    bottomRow.removeFromLeft (10); // ギャップ
     auto meterPanel = mainBody.removeFromRight (88);
 
     // メーターモードセレクター (上部)
@@ -1288,28 +1320,43 @@ void AutoLevelerAudioProcessorEditor::resized()
     meterPanel.removeFromTop (6);
     slimMeterComponent.setBounds (meterPanel);
 
-    // --- C. 中央 WAVEFORM DISPLAY & TAME NOISE STRIP (残り幅) ---
+    // --- C. 中央 WAVEFORM DISPLAY (残りメインエリア) ---
     mainBody.removeFromRight (10); // ギャップ
-
-    auto tameStrip = mainBody.removeFromBottom (48);
-    mainBody.removeFromBottom (6); // ギャップ
+    bottomRow.removeFromRight (98); // 右側メーター幅+ギャップ分
     waveformComponent.setBounds (mainBody);
 
-    // TAME NOISE ストリップのレイアウト
-    auto tameNoiseBtnArea = tameStrip.removeFromLeft (110).reduced (2, 9);
+    // 最下部ストリップの中央エリア: TAME NOISE コントロール (完全に同一水平ラインで整列)
+    // [● LED (24px)] [TAME NOISE (100px)] [LISTEN (75px)] --- [AMOUNT (120px)] --- [RELEASE (130px)]
+    auto tameLedArea = bottomRow.removeFromLeft (26);
+    tameNoiseLed.setBounds (tameLedArea.reduced (1, 2));
+
+    auto tameNoiseBtnArea = bottomRow.removeFromLeft (104).reduced (2, 6);
     tameNoiseButton.setBounds (tameNoiseBtnArea);
 
-    auto tameListenBtnArea = tameStrip.removeFromLeft (85).reduced (2, 9);
+    auto tameListenBtnArea = bottomRow.removeFromLeft (78).reduced (2, 6);
     tameListenButton.setBounds (tameListenBtnArea);
 
-    tameStrip.removeFromLeft (16); // スペーサー
-    auto amountArea = tameStrip.removeFromLeft (150);
-    auto knobBox = amountArea.removeFromLeft (44).reduced (0, 2);
+    bottomRow.removeFromLeft (12); // スペーサー
+
+    // TAME AMOUNT ノブ & ラベル
+    auto amountArea = bottomRow.removeFromLeft (125);
+    auto knobBox = amountArea.removeFromLeft (38).reduced (0, 2);
     tameAmountSlider.setBounds (knobBox);
 
-    auto amountLabels = amountArea.reduced (4, 2);
-    tameAmountLabel.setBounds      (amountLabels.removeFromTop (20));
+    auto amountLabels = amountArea.reduced (4, 0);
+    tameAmountLabel.setBounds      (amountLabels.removeFromTop (18));
     tameAmountValueLabel.setBounds (amountLabels.removeFromTop (18));
+
+    bottomRow.removeFromLeft (10); // スペーサー
+
+    // TAME RELEASE ノブ & ラベル
+    auto releaseArea = bottomRow.removeFromLeft (135);
+    auto relKnobBox = releaseArea.removeFromLeft (38).reduced (0, 2);
+    tameReleaseSlider.setBounds (relKnobBox);
+
+    auto relLabels = releaseArea.reduced (4, 0);
+    tameReleaseLabel.setBounds      (relLabels.removeFromTop (18));
+    tameReleaseValueLabel.setBounds (relLabels.removeFromTop (18));
 
     syncTargetSliderLayout();
 }

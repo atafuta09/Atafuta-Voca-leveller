@@ -30,7 +30,8 @@ namespace ParameterIDs
     // TameNoise & サイドチェインフィルター新パラメータ
     inline constexpr auto tameNoiseEnable = "tame_noise_enable";
     inline constexpr auto tameNoiseListen = "tame_noise_listen";
-    inline constexpr auto tameNoiseAmount = "tame_noise_amount";
+    inline constexpr auto tameNoiseAmount  = "tame_noise_amount";
+    inline constexpr auto tameNoiseRelease = "tame_noise_release";
     inline constexpr auto scFilterEnable  = "sc_filter_enable";
 }
 
@@ -70,6 +71,7 @@ struct Preset
     bool  lookahead = true;
     bool  tameNoise = true;
     float tameAmount = 30.0f;
+    float tameRelease = 50.0f;
     bool  scFilter = true;
     int   detectionMode = 0; // 0: RMS, 1: Peak
     int   timingMode = 0;    // 0: Free, 1: Sync
@@ -128,6 +130,7 @@ public:
     float getTameBreathScore()    const noexcept { return tameNoiseBreathScore.load (std::memory_order_relaxed); }
     float getTameNormalScore()    const noexcept { return tameNoiseNormalScore.load (std::memory_order_relaxed); }
     bool  isTameNoiseTriggered()   const noexcept { return tameNoiseTrigger.load (std::memory_order_relaxed); }
+    float getTameNoiseLedIntensity() const noexcept { return tameNoiseLedIntensity.load (std::memory_order_relaxed); }
 
     // ホストBPMの取得
     float getCurrentBpm() const noexcept { return currentBpm.load (std::memory_order_relaxed); }
@@ -215,6 +218,7 @@ private:
     std::atomic<float>* tameNoiseEnableParam = nullptr;
     std::atomic<float>* tameNoiseListenParam = nullptr;
     std::atomic<float>* tameNoiseAmountParam = nullptr;
+    std::atomic<float>* tameNoiseReleaseParam = nullptr;
     std::atomic<float>* scFilterEnableParam  = nullptr;
 
     // プリセット管理
@@ -256,6 +260,7 @@ private:
     std::atomic<float> tameNoiseBreathScore    { 0.0f };
     std::atomic<float> tameNoiseNormalScore    { 0.0f };
     std::atomic<bool>  tameNoiseTrigger        { false };
+    std::atomic<float> tameNoiseLedIntensity     { 0.0f };
 
     // ボーカルオートレベラー DSPステート
     float fastEnvelopeRms = 0.0f;

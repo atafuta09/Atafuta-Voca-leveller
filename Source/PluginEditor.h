@@ -131,6 +131,70 @@ private:
  * AutoLeveler プラグインエディター (GUI)
  * 1000 x 580 px Modern Dark Studio Hardware UI
  */
+
+// ==============================================================================
+/**
+ * TameNoise リアルタイム検出 LED インジケーター Component
+ */
+class TameNoiseLedComponent : public juce::Component
+{
+public:
+    TameNoiseLedComponent() { setOpaque (false); }
+    ~TameNoiseLedComponent() override = default;
+
+    void setIntensity (float val)
+    {
+        val = juce::jlimit (0.0f, 1.0f, val);
+        if (std::abs (intensity - val) > 0.02f)
+        {
+            intensity = val;
+            repaint();
+        }
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto bounds = getLocalBounds().toFloat();
+        const float centerX = bounds.getCentreX();
+        const float centerY = bounds.getY() + 14.0f;
+        const float radius = 6.0f;
+
+        // A. ラベル文字 "NOISE"
+        g.setFont (juce::FontOptions (8.0f, juce::Font::bold));
+        g.setColour (intensity > 0.2f ? juce::Colour (0xfb, 0xbf, 0x24) : juce::Colour (0x64, 0x74, 0x8b));
+        g.drawText ("NOISE", 0, juce::roundToInt (centerY + 8.0f), getWidth(), 12, juce::Justification::centred, false);
+
+        // B. LED 金属ベゼル外枠
+        g.setColour (juce::Colour (0x33, 0x41, 0x55));
+        g.drawEllipse (centerX - radius - 1.5f, centerY - radius - 1.5f, (radius + 1.5f) * 2.0f, (radius + 1.5f) * 2.0f, 1.5f);
+
+        // C. LED グロー光彩（発光時）
+        if (intensity > 0.05f)
+        {
+            g.setColour (juce::Colour (0xf5, 0x9e, 0x0b).withAlpha (intensity * 0.45f));
+            g.fillEllipse (centerX - radius * 2.0f, centerY - radius * 2.0f, radius * 4.0f, radius * 4.0f);
+        }
+
+        // D. LED コア
+        if (intensity > 0.1f)
+        {
+            juce::ColourGradient ledGrad (
+                juce::Colours::white.interpolatedWith (juce::Colour (0xfb, 0xbf, 0x24), 0.3f), centerX, centerY,
+                juce::Colour (0xd9, 0x77, 0x06), centerX + radius, centerY + radius, true);
+            g.setGradientFill (ledGrad);
+        }
+        else
+        {
+            g.setColour (juce::Colour (0x1e, 0x24, 0x33));
+        }
+        g.fillEllipse (centerX - radius, centerY - radius, radius * 2.0f, radius * 2.0f);
+    }
+
+private:
+    float intensity = 0.0f;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TameNoiseLedComponent)
+};
+
 class AutoLevelerAudioProcessorEditor : public juce::AudioProcessorEditor,
                                        public juce::Timer
 {
@@ -203,12 +267,16 @@ private:
     juce::ToggleButton scFilterButton;
     juce::ToggleButton bypassButton;
 
-    // TAME NOISE セクション (ON/OFF, LISTEN, AMOUNTノブ)
-    juce::ToggleButton tameNoiseButton;
-    juce::ToggleButton tameListenButton;
-    juce::Slider       tameAmountSlider;
-    juce::Label        tameAmountLabel;
-    juce::Label        tameAmountValueLabel;
+    // TAME NOISE セクション (LED, ON/OFF, LISTEN, AMOUNTノブ, RELEASEノブ)
+    TameNoiseLedComponent tameNoiseLed;
+    juce::ToggleButton    tameNoiseButton;
+    juce::ToggleButton    tameListenButton;
+    juce::Slider          tameAmountSlider;
+    juce::Label           tameAmountLabel;
+    juce::Label           tameAmountValueLabel;
+    juce::Slider          tameReleaseSlider;
+    juce::Label           tameReleaseLabel;
+    juce::Label           tameReleaseValueLabel;
 
     // トップヘッダー新設コンポーネント (プリセット、保存、ズーム、カラー、SNSリンク)
     juce::ComboBox   presetBox;
@@ -244,6 +312,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   tameNoiseAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   tameListenAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   tameAmountAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   tameReleaseAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AutoLevelerAudioProcessorEditor)
 };

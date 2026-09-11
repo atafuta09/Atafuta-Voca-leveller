@@ -28,16 +28,17 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     tameNoiseListenParam = apvts.getRawParameterValue (ParameterIDs::tameNoiseListen);
     tameNoiseAmountParam = apvts.getRawParameterValue (ParameterIDs::tameNoiseAmount);
     scFilterEnableParam  = apvts.getRawParameterValue (ParameterIDs::scFilterEnable);
+    tameNoiseReleaseParam = apvts.getRawParameterValue (ParameterIDs::tameNoiseRelease);
 
     // ファクトリープリセット (TameNoise & SC Filter 対応)
-    presets.push_back ({ "Default", 0.0f, -12.0f, 6.0f, 50.0f, 0.0f, true, true, 30.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Synth Vocal", 0.0f, -14.0f, 6.0f, 75.0f, 0.0f, true, true, 45.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Gentle Vocal Ride", 0.0f, -14.0f, 4.0f, 35.0f, 0.0f, true, true, 25.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Aggressive Leveler", 0.0f, -10.0f, 10.0f, 75.0f, 0.0f, true, true, 50.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Podcast / Spoken", 0.0f, -16.0f, 8.0f, 60.0f, 0.0f, true, true, 40.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Ballad Dynamic", 0.0f, -18.0f, 8.0f, 30.0f, 0.0f, true, true, 20.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Peak Catching Leveler", 0.0f, -12.0f, 6.0f, 70.0f, 0.0f, true, true, 35.0f, true, 1, 0, 1 });
-    presets.push_back ({ "Broadcast Rider", 0.0f, -14.0f, 5.0f, 45.0f, 0.0f, true, true, 30.0f, true, 0, 1, 1 });
+    presets.push_back ({ "Default", 0.0f, -12.0f, 6.0f, 50.0f, 0.0f, true, true, 30.0f, 50.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Synth Vocal", 0.0f, -14.0f, 6.0f, 75.0f, 0.0f, true, true, 45.0f, 50.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Gentle Vocal Ride", 0.0f, -14.0f, 4.0f, 35.0f, 0.0f, true, true, 25.0f, 50.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Aggressive Leveler", 0.0f, -10.0f, 10.0f, 75.0f, 0.0f, true, true, 50.0f, 50.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Podcast / Spoken", 0.0f, -16.0f, 8.0f, 60.0f, 0.0f, true, true, 40.0f, 50.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Ballad Dynamic", 0.0f, -18.0f, 8.0f, 30.0f, 0.0f, true, true, 20.0f, 50.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Peak Catching Leveler", 0.0f, -12.0f, 6.0f, 70.0f, 0.0f, true, true, 35.0f, 50.0f, true, 1, 0, 1 });
+    presets.push_back ({ "Broadcast Rider", 0.0f, -14.0f, 5.0f, 45.0f, 0.0f, true, true, 30.0f, 50.0f, true, 0, 1, 1 });
 
     loadUserPresets();
 
@@ -93,6 +94,8 @@ void AutoLevelerAudioProcessor::setCurrentProgram (int index)
             param->setValueNotifyingHost (p.tameNoise ? 1.0f : 0.0f);
         if (auto* param = apvts.getParameter (ParameterIDs::tameNoiseAmount))
             param->setValueNotifyingHost (param->convertTo0to1 (p.tameAmount));
+        if (auto* param = apvts.getParameter (ParameterIDs::tameNoiseRelease))
+            param->setValueNotifyingHost (param->convertTo0to1 (p.tameRelease));
         if (auto* param = apvts.getParameter (ParameterIDs::scFilterEnable))
             param->setValueNotifyingHost (p.scFilter ? 1.0f : 0.0f);
         if (auto* param = apvts.getParameter (ParameterIDs::detectionMode))
@@ -140,6 +143,7 @@ void AutoLevelerAudioProcessor::loadUserPresets()
                 p.lookahead     = child->getBoolAttribute ("lookahead", true);
                 p.tameNoise     = child->getBoolAttribute ("tameNoise", true);
                 p.tameAmount    = static_cast<float>(child->getDoubleAttribute ("tameAmount", 30.0));
+                p.tameRelease   = static_cast<float>(child->getDoubleAttribute ("tameRelease", 50.0));
                 p.scFilter      = child->getBoolAttribute ("scFilter", true);
                 p.detectionMode = child->getIntAttribute ("det", 0);
                 p.timingMode    = child->getIntAttribute ("timing", 0);
@@ -173,6 +177,7 @@ void AutoLevelerAudioProcessor::saveUserPresetsToFile()
         child->setAttribute ("lookahead", p.lookahead);
         child->setAttribute ("tameNoise", p.tameNoise);
         child->setAttribute ("tameAmount", static_cast<double>(p.tameAmount));
+        child->setAttribute ("tameRelease", static_cast<double>(p.tameRelease));
         child->setAttribute ("scFilter", p.scFilter);
         child->setAttribute ("det", p.detectionMode);
         child->setAttribute ("timing", p.timingMode);
@@ -196,6 +201,7 @@ bool AutoLevelerAudioProcessor::saveUserPreset (const juce::String& presetName)
     newPreset.lookahead     = lookaheadEnableParam != nullptr ? (lookaheadEnableParam->load() > 0.5f) : true;
     newPreset.tameNoise     = tameNoiseEnableParam != nullptr ? (tameNoiseEnableParam->load() > 0.5f) : true;
     newPreset.tameAmount    = tameNoiseAmountParam != nullptr ? tameNoiseAmountParam->load() : 30.0f;
+    newPreset.tameRelease   = tameNoiseReleaseParam != nullptr ? tameNoiseReleaseParam->load() : 50.0f;
     newPreset.scFilter      = scFilterEnableParam  != nullptr ? (scFilterEnableParam->load() > 0.5f) : true;
     newPreset.detectionMode = detectionModeParam != nullptr ? juce::roundToInt (detectionModeParam->load()) : 0;
     newPreset.timingMode    = timingModeParam != nullptr ? juce::roundToInt (timingModeParam->load()) : 0;
@@ -280,6 +286,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout AutoLevelerAudioProcessor::c
         juce::NormalisableRange<float> (0.0f, 100.0f, 0.5f),
         30.0f, // ユーザー指定デフォルト 30%!
         juce::AudioParameterFloatAttributes().withLabel ("%")
+    ));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParameterIDs::tameNoiseRelease, 1 },
+        "Tame Release",
+        juce::NormalisableRange<float> (10.0f, 500.0f, 1.0f),
+        50.0f,
+        juce::AudioParameterFloatAttributes().withLabel ("ms")
     ));
 
     params.push_back (std::make_unique<juce::AudioParameterBool> (
@@ -466,6 +480,8 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     const auto timing = calculateTiming (speedVal, isSyncMode, syncSpeedChoice, currentBpm.load (std::memory_order_relaxed));
     const float attackCoeff  = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (timing.attackMs * 0.001f)));
     const float releaseCoeff = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (timing.releaseMs * 0.001f)));
+    const float tameReleaseMs = tameNoiseReleaseParam != nullptr ? tameNoiseReleaseParam->load (std::memory_order_relaxed) : 50.0f;
+    const float tameReleaseCoeff = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (tameReleaseMs * 0.001f)));
 
     constexpr float rmsWindowMs = 25.0f;
     const float rmsEnvCoeff = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (rmsWindowMs * 0.001f)));
@@ -521,8 +537,18 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
                 tameNoiseBreathScore.store (match.breathScore, std::memory_order_relaxed);
                 tameNoiseNormalScore.store (match.normalScore, std::memory_order_relaxed);
 
-                const float maxNoise = std::max ({ match.sibilanceScore, match.breathScore, match.plosiveScore });
-                tameNoiseTrigger.store (maxNoise > 0.40f, std::memory_order_relaxed);
+                // ユーザー要望：Plosive機能は完全除外 (Sibilance と Breath のみ)
+                const float maxNoise = std::max (match.sibilanceScore, match.breathScore);
+                tameNoiseTrigger.store (maxNoise > 0.35f, std::memory_order_relaxed);
+
+                // LED インジケーター用強度 (瞬時アタック & スムーズ減衰)
+                const float targetLed = (isTameNoiseOn && maxNoise > 0.20f) ? std::min (1.0f, maxNoise * 1.4f) : 0.0f;
+                float currentLed = tameNoiseLedIntensity.load (std::memory_order_relaxed);
+                if (targetLed > currentLed)
+                    currentLed = targetLed;
+                else
+                    currentLed = std::max (0.0f, currentLed - 0.04f);
+                tameNoiseLedIntensity.store (currentLed, std::memory_order_relaxed);
             }
         }
         tameLastDawSample = monoDetectorInput;
@@ -562,22 +588,33 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         const float currBr    = tameNoiseBreathScore.load (std::memory_order_relaxed);
         const float currNoise = std::max (currSib, currBr);
 
-        if (isTameNoiseOn && currNoise > 0.20f)
-        {
-            // ノイズ発生時: レベラーがノイズを持ち上げるのを抑制
-            if (targetGainDb > 0.0f)
-                targetGainDb *= (1.0f - currNoise);
+        const bool isNoiseActive = (isTameNoiseOn && currNoise > 0.20f);
 
-            // Tame Amount に応じた追加の音楽的ノイズリダクション (最大 -12dB)
-            const float tameReductionDb = -12.0f * tameAmountNorm * currNoise;
-            targetGainDb += tameReductionDb;
+        if (isNoiseActive)
+        {
+            // 1. ノイズ発生時は誤ブースト（targetGainDb > 0）を抑制
+            if (targetGainDb > 0.0f)
+                targetGainDb *= std::max (0.0f, 1.0f - (tameAmountNorm * currNoise * 1.5f));
+
+            // 2. ユーザー要望：TameNoise検出時はRange内の0dB以下に下げない (下限 0.0dB)
+            if (targetGainDb < 0.0f)
+                targetGainDb = 0.0f;
         }
 
-        // アタック / リリース弾道計算
+        // 7. ゲインスムージング (アタック／リリース弾道フィルター)
         if (targetGainDb < currentSmoothedGainDb)
+        {
             currentSmoothedGainDb += attackCoeff * (targetGainDb - currentSmoothedGainDb);
+        }
         else
-            currentSmoothedGainDb += releaseCoeff * (targetGainDb - currentSmoothedGainDb);
+        {
+            // リリース：歯擦音検出時または復帰時は専用の TameRelease 係数で素早く戻す
+            float activeReleaseCoeff = releaseCoeff;
+            if (currSib > 0.15f || isNoiseActive)
+                activeReleaseCoeff = tameReleaseCoeff;
+
+            currentSmoothedGainDb += activeReleaseCoeff * (targetGainDb - currentSmoothedGainDb);
+        }
 
         // 7. 出力ゲインの適用 (Lookahead 原音スルーバッファから取得)
         const float outG = juce::Decibels::decibelsToGain (smoothedOutputGainDb.getNextValue());
