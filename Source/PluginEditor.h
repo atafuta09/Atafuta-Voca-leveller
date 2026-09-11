@@ -154,40 +154,64 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        auto bounds = getLocalBounds().toFloat();
-        const float centerX = bounds.getCentreX();
-        const float centerY = bounds.getY() + 14.0f;
-        const float radius = 6.0f;
+        const auto bounds = getLocalBounds().toFloat().reduced (1.0f);
+        const float cornerSize = 4.0f;
 
-        // A. ラベル文字 "NOISE"
-        g.setFont (juce::FontOptions (8.0f, juce::Font::bold));
-        g.setColour (intensity > 0.2f ? juce::Colour (0xfb, 0xbf, 0x24) : juce::Colour (0x64, 0x74, 0x8b));
-        g.drawText ("NOISE", 0, juce::roundToInt (centerY + 8.0f), getWidth(), 12, juce::Justification::centred, false);
-
-        // B. LED 金属ベゼル外枠
-        g.setColour (juce::Colour (0x33, 0x41, 0x55));
-        g.drawEllipse (centerX - radius - 1.5f, centerY - radius - 1.5f, (radius + 1.5f) * 2.0f, (radius + 1.5f) * 2.0f, 1.5f);
-
-        // C. LED グロー光彩（発光時）
-        if (intensity > 0.05f)
+        if (intensity > 0.08f)
         {
-            g.setColour (juce::Colour (0xf5, 0x9e, 0x0b).withAlpha (intensity * 0.45f));
-            g.fillEllipse (centerX - radius * 2.0f, centerY - radius * 2.0f, radius * 4.0f, radius * 4.0f);
-        }
+            // 点灯時：TameNoiseボタンと同系統の鮮烈なアンバー・自照式スイッチ発光
+            const float alpha = std::min (1.0f, intensity * 1.25f);
+            
+            juce::ColourGradient bg (
+                juce::Colour (0x78, 0x35, 0x0f).withAlpha (alpha * 0.75f), bounds.getX(), bounds.getY(),
+                juce::Colour (0x45, 0x1a, 0x03).withAlpha (alpha * 0.95f), bounds.getX(), bounds.getBottom(), false);
+            g.setGradientFill (bg);
+            g.fillRoundedRectangle (bounds, cornerSize);
 
-        // D. LED コア
-        if (intensity > 0.1f)
-        {
-            juce::ColourGradient ledGrad (
-                juce::Colours::white.interpolatedWith (juce::Colour (0xfb, 0xbf, 0x24), 0.3f), centerX, centerY,
-                juce::Colour (0xd9, 0x77, 0x06), centerX + radius, centerY + radius, true);
-            g.setGradientFill (ledGrad);
+            // 発光枠線
+            g.setColour (juce::Colour (0xf5, 0x9e, 0x0b).withAlpha (alpha));
+            g.drawRoundedRectangle (bounds, cornerSize, 1.2f);
+
+            // インジケータードット (●)
+            const float dotX = bounds.getX() + 18.0f;
+            const float dotY = bounds.getCentreY();
+            const float dotR = 4.5f;
+
+            // ドット外周グロー
+            g.setColour (juce::Colour (0xfb, 0xbf, 0x24).withAlpha (alpha * 0.55f));
+            g.fillEllipse (dotX - dotR * 1.8f, dotY - dotR * 1.8f, dotR * 3.6f, dotR * 3.6f);
+
+            // ドット本体 (白熱コア)
+            g.setColour (juce::Colour (0xfb, 0xbf, 0x24));
+            g.fillEllipse (dotX - dotR, dotY - dotR, dotR * 2.0f, dotR * 2.0f);
+
+            // "NOISE" テキスト
+            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+            g.setColour (juce::Colour (0xfe, 0xf3, 0xc7));
+            g.drawText ("NOISE", juce::roundToInt (dotX + dotR + 6.0f), 0, juce::roundToInt (bounds.getWidth() - (dotX + dotR + 8.0f)), getHeight(), juce::Justification::centredLeft, false);
         }
         else
         {
-            g.setColour (juce::Colour (0x1e, 0x24, 0x33));
+            // 消灯時：TameNoiseボタン等と同じシックな実機ダークスレート
+            g.setColour (juce::Colour (0x13, 0x16, 0x1f));
+            g.fillRoundedRectangle (bounds, cornerSize);
+
+            g.setColour (juce::Colour (0x26, 0x2b, 0x3a));
+            g.drawRoundedRectangle (bounds, cornerSize, 1.0f);
+
+            // 消灯ドット
+            const float dotX = bounds.getX() + 18.0f;
+            const float dotY = bounds.getCentreY();
+            const float dotR = 4.0f;
+
+            g.setColour (juce::Colour (0x33, 0x41, 0x55));
+            g.fillEllipse (dotX - dotR, dotY - dotR, dotR * 2.0f, dotR * 2.0f);
+
+            // 消灯テキスト
+            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+            g.setColour (juce::Colour (0x64, 0x74, 0x8b));
+            g.drawText ("NOISE", juce::roundToInt (dotX + dotR + 6.0f), 0, juce::roundToInt (bounds.getWidth() - (dotX + dotR + 8.0f)), getHeight(), juce::Justification::centredLeft, false);
         }
-        g.fillEllipse (centerX - radius, centerY - radius, radius * 2.0f, radius * 2.0f);
     }
 
 private:

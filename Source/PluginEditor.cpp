@@ -1325,15 +1325,15 @@ void AutoLevelerAudioProcessorEditor::resized()
     bottomRow.removeFromRight (98); // 右側メーター幅+ギャップ分
     waveformComponent.setBounds (mainBody);
 
-    // 最下部ストリップの中央エリア: TAME NOISE コントロール (完全に同一水平ラインで整列)
-    // [● LED (24px)] [TAME NOISE (100px)] [LISTEN (75px)] --- [AMOUNT (120px)] --- [RELEASE (130px)]
-    auto tameLedArea = bottomRow.removeFromLeft (26);
-    tameNoiseLed.setBounds (tameLedArea.reduced (1, 2));
+    // 最下部ストリップの中央エリア: TAME NOISE コントロール (完全に同一水平ライン・同サイズで整列)
+    // [● NOISE LED (88px)] [TAME NOISE (100px)] [LISTEN (76px)] --- [AMOUNT (120px)] --- [RELEASE (130px)]
+    auto tameLedArea = bottomRow.removeFromLeft (88).reduced (2, 6);
+    tameNoiseLed.setBounds (tameLedArea);
 
-    auto tameNoiseBtnArea = bottomRow.removeFromLeft (104).reduced (2, 6);
+    auto tameNoiseBtnArea = bottomRow.removeFromLeft (102).reduced (2, 6);
     tameNoiseButton.setBounds (tameNoiseBtnArea);
 
-    auto tameListenBtnArea = bottomRow.removeFromLeft (78).reduced (2, 6);
+    auto tameListenBtnArea = bottomRow.removeFromLeft (76).reduced (2, 6);
     tameListenButton.setBounds (tameListenBtnArea);
 
     bottomRow.removeFromLeft (12); // スペーサー

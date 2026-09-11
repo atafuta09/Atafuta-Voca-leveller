@@ -171,6 +171,7 @@ public:
         accumZcr = 0.0;
         accumHighRatio = 0.0;
         smoothedBreathScore = 0.0f;
+        breathHoldCounter = 0;
     }
 
     void startLearnSibilance()
@@ -235,6 +236,7 @@ public:
         hasCustomNormal.store(false);
         hasPending.store(false);
         smoothedBreathScore = 0.0f;
+        breathHoldCounter = 0;
     }
 
     bool isLearning() const noexcept
@@ -297,7 +299,16 @@ public:
         if (res.rms < 0.0015f)
         {
             res.normalScore = 0.0f;
-            smoothedBreathScore *= 0.85f; // 静寂時は自然減衰
+            if (breathHoldCounter > 0)
+            {
+                breathHoldCounter--;
+                smoothedBreathScore *= 0.97f;
+            }
+            else
+            {
+                smoothedBreathScore *= 0.92f;
+            }
+            res.breathScore = std::clamp(smoothedBreathScore, 0.0f, 1.0f);
             return res;
         }
 
@@ -360,17 +371,31 @@ public:
         float rawBrScore  = matchBreath(currentSpec, zcr, highRatio);
 
         // 6. 通常ボーカル対比 (Precision Vocal Masking):
-        if (normalSim > 0.30f)
+        // ブレス継続中はマスキングを緩和して途切れを防止
+        if (normalSim > 0.35f)
         {
-            const float vocalMask = std::clamp(1.0f - (normalSim - 0.30f) * 1.8f, 0.0f, 1.0f);
+            const float maskIntensity = (breathHoldCounter > 0) ? 0.9f : 1.8f;
+            const float vocalMask = std::clamp(1.0f - (normalSim - 0.35f) * maskIntensity, 0.0f, 1.0f);
             rawSibScore *= vocalMask;
             rawBrScore  *= vocalMask;
         }
 
-        // 7. ブレス専用 適応型 弾道スムーザー (Adaptive Ballistics Filter)
-        const bool isQuickInhale = (rawBrScore > smoothedBreathScore + 0.25f);
-        float alphaAtt = isQuickInhale ? 0.95f : 0.85f;
-        float alphaRel = isQuickInhale ? 0.55f : 0.28f;
+        // 7. ブレス前後を滑らかにつなぐ ホールド ＆ 適応型スムーザー
+        // ブレスが立ち上がったらホールドカウンターをセット (約160ms = 20フレーム維持して途切れを防止)
+        if (rawBrScore > 0.25f)
+        {
+            breathHoldCounter = 20; // 20 frames * 8ms = 160ms ホールド
+        }
+        else if (breathHoldCounter > 0)
+        {
+            breathHoldCounter--;
+            // ホールド中は急な落ち込みを防ぎ、滑らかに維持
+            rawBrScore = std::max(rawBrScore, smoothedBreathScore * 0.94f);
+        }
+
+        // アタック (素早く追従: 約25ms) と リリース (前後に滑らかに繋がる: 約150〜200ms)
+        const float alphaAtt = 0.75f;
+        const float alphaRel = (breathHoldCounter > 0) ? 0.04f : 0.08f;
 
         if (rawBrScore > smoothedBreathScore)
             smoothedBreathScore += alphaAtt * (rawBrScore - smoothedBreathScore);
@@ -673,6 +698,7 @@ public:
 
     // スムーザー用内部ステート
     float smoothedBreathScore = 0.0f;
+    int   breathHoldCounter   = 0;
 
     int accumFrames = 0;
     std::array<double, NUM_BANDS> accumSpectrum {};
