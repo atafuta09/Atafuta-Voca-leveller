@@ -646,7 +646,7 @@ public:
         }
         else
         {
-            saveProfileToJson("NormalVocal_Tmpl0", female_learned_normalvocal_0, gender, baseDataDir);
+            // saveProfileToJson("NormalVocal_Tmpl0", female_learned_normalvocal_0, gender, baseDataDir); // Disabled default export
             count++;
         }
 
