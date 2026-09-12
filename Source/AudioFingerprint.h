@@ -371,7 +371,7 @@ public:
         // 7. ブレス専用 弾道スムーザー (Adaptive Ballistics Filter)
         // ※ホールド機能は完全削除。歯擦音は即座に応答し、ブレスのみ滑らかなアタックとリリースで繋ぐ
         const float alphaAtt = 0.85f; // ブレスのアタック（約20ms）
-        const float alphaRel = 0.08f; // ブレスのリリース（約120msで滑らかに通常歌声へ接続）
+        const float alphaRel = 0.10f; // ブレスのリリース（約100msでキレよく通常歌声へ接続）
 
         if (rawBrScore > smoothedBreathScore)
             smoothedBreathScore += alphaAtt * (rawBrScore - smoothedBreathScore);

@@ -31,14 +31,14 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     tameNoiseReleaseParam = apvts.getRawParameterValue (ParameterIDs::tameNoiseRelease);
 
     // ファクトリープリセット (TameNoise & SC Filter 対応)
-    presets.push_back ({ "Default", 0.0f, -12.0f, 6.0f, 50.0f, 0.0f, true, true, 30.0f, 50.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Synth Vocal", 0.0f, -14.0f, 6.0f, 75.0f, 0.0f, true, true, 45.0f, 50.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Gentle Vocal Ride", 0.0f, -14.0f, 4.0f, 35.0f, 0.0f, true, true, 25.0f, 50.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Aggressive Leveler", 0.0f, -10.0f, 10.0f, 75.0f, 0.0f, true, true, 50.0f, 50.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Podcast / Spoken", 0.0f, -16.0f, 8.0f, 60.0f, 0.0f, true, true, 40.0f, 50.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Ballad Dynamic", 0.0f, -18.0f, 8.0f, 30.0f, 0.0f, true, true, 20.0f, 50.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Peak Catching Leveler", 0.0f, -12.0f, 6.0f, 70.0f, 0.0f, true, true, 35.0f, 50.0f, true, 1, 0, 1 });
-    presets.push_back ({ "Broadcast Rider", 0.0f, -14.0f, 5.0f, 45.0f, 0.0f, true, true, 30.0f, 50.0f, true, 0, 1, 1 });
+    presets.push_back ({ "Default", 0.0f, -12.0f, 6.0f, 50.0f, 0.0f, true, true, 50.0f, 100.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Synth Vocal", 0.0f, -14.0f, 6.0f, 75.0f, 0.0f, true, true, 60.0f, 100.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Gentle Vocal Ride", 0.0f, -14.0f, 4.0f, 35.0f, 0.0f, true, true, 40.0f, 100.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Aggressive Leveler", 0.0f, -10.0f, 10.0f, 75.0f, 0.0f, true, true, 70.0f, 100.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Podcast / Spoken", 0.0f, -16.0f, 8.0f, 60.0f, 0.0f, true, true, 60.0f, 100.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Ballad Dynamic", 0.0f, -18.0f, 8.0f, 30.0f, 0.0f, true, true, 35.0f, 100.0f, true, 0, 0, 1 });
+    presets.push_back ({ "Peak Catching Leveler", 0.0f, -12.0f, 6.0f, 70.0f, 0.0f, true, true, 55.0f, 100.0f, true, 1, 0, 1 });
+    presets.push_back ({ "Broadcast Rider", 0.0f, -14.0f, 5.0f, 45.0f, 0.0f, true, true, 50.0f, 100.0f, true, 0, 1, 1 });
 
     loadUserPresets();
 
@@ -282,9 +282,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout AutoLevelerAudioProcessor::c
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParameterIDs::tameNoiseAmount, 1 },
-        "Tame Amount",
+        "Tame Sensitivity",
         juce::NormalisableRange<float> (0.0f, 100.0f, 0.5f),
-        30.0f, // ユーザー指定デフォルト 30%!
+        50.0f, // デフォルト 50% (Learnner Sensitivity 0.5 と完全一致)
         juce::AudioParameterFloatAttributes().withLabel ("%")
     ));
 
@@ -292,7 +292,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AutoLevelerAudioProcessor::c
         juce::ParameterID { ParameterIDs::tameNoiseRelease, 1 },
         "Tame Release",
         juce::NormalisableRange<float> (10.0f, 500.0f, 1.0f),
-        50.0f,
+        100.0f, // デフォルト 100ms
         juce::AudioParameterFloatAttributes().withLabel ("ms")
     ));
 
@@ -480,7 +480,7 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     const auto timing = calculateTiming (speedVal, isSyncMode, syncSpeedChoice, currentBpm.load (std::memory_order_relaxed));
     const float attackCoeff  = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (timing.attackMs * 0.001f)));
     const float releaseCoeff = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (timing.releaseMs * 0.001f)));
-    const float tameReleaseMs = tameNoiseReleaseParam != nullptr ? tameNoiseReleaseParam->load (std::memory_order_relaxed) : 50.0f;
+    const float tameReleaseMs = tameNoiseReleaseParam != nullptr ? tameNoiseReleaseParam->load (std::memory_order_relaxed) : 100.0f;
     const float tameReleaseCoeff = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (tameReleaseMs * 0.001f)));
 
     constexpr float rmsWindowMs = 25.0f;
@@ -537,17 +537,27 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
                 tameNoiseBreathScore.store (match.breathScore, std::memory_order_relaxed);
                 tameNoiseNormalScore.store (match.normalScore, std::memory_order_relaxed);
 
-                // ユーザー要望：Plosive機能は完全除外 (Sibilance と Breath のみ)
-                const float maxNoise = std::max (match.sibilanceScore, match.breathScore);
-                tameNoiseTrigger.store (maxNoise > 0.35f, std::memory_order_relaxed);
+                // LearnnerプラグインのSensitivityノブと全く同じ閾値検知 (0.20 ~ 0.85)
+                const float sensitivity = tameAmountNorm; // 0.0 ~ 1.0
+                const float threshold   = 0.85f - (sensitivity * 0.65f);
 
-                // LED インジケーター用強度 (瞬時アタック & スムーズ減衰)
-                const float targetLed = (isTameNoiseOn && maxNoise > 0.20f) ? std::min (1.0f, maxNoise * 1.4f) : 0.0f;
+                bool noiseActive = false;
+                if (match.sibilanceScore >= threshold) noiseActive = true;
+                if (match.breathScore    >= threshold) noiseActive = true;
+
+                tameNoiseTrigger.store (isTameNoiseOn && noiseActive, std::memory_order_relaxed);
+
+                // LED インジケーター強度 (検知時は閾値超過度に応じて瞬時に発光、その後滑らかに減衰)
+                const float maxNoise = std::max (match.sibilanceScore, match.breathScore);
+                const float targetLed = (isTameNoiseOn && noiseActive)
+                    ? std::min (1.0f, 0.45f + ((maxNoise - threshold) / (1.0f - threshold + 1e-4f)) * 0.55f)
+                    : 0.0f;
+
                 float currentLed = tameNoiseLedIntensity.load (std::memory_order_relaxed);
                 if (targetLed > currentLed)
                     currentLed = targetLed;
                 else
-                    currentLed = std::max (0.0f, currentLed - 0.04f);
+                    currentLed = std::max (0.0f, currentLed - 0.05f);
                 tameNoiseLedIntensity.store (currentLed, std::memory_order_relaxed);
             }
         }
@@ -583,34 +593,39 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         const float activityWeight = juce::jlimit (0.0f, 1.0f, (detectedDb - digitalZeroFloorDb) / 12.0f);
         targetGainDb *= activityWeight;
 
-        // TameNoise によるノイズ保護 ＆ リダクション (Amount 30% デフォルト)
+        // TameNoise によるノイズ抑制リダクション (Learnner Sensitivity 方式)
+        const float sensitivity = tameAmountNorm;
+        const float threshold   = 0.85f - (sensitivity * 0.65f);
+
         const float currSib   = tameNoiseSibilanceScore.load (std::memory_order_relaxed);
         const float currBr    = tameNoiseBreathScore.load (std::memory_order_relaxed);
-        const float currNoise = std::max (currSib, currBr);
-
-        const bool isNoiseActive = (isTameNoiseOn && currNoise > 0.20f);
+        const bool isNoiseActive = isTameNoiseOn && (currSib >= threshold || currBr >= threshold);
 
         if (isNoiseActive)
         {
-            // 1. ノイズ発生時は誤ブースト（targetGainDb > 0）を抑制
+            // 1. ノイズ時はブースト（targetGainDb > 0）を抑制
             if (targetGainDb > 0.0f)
-                targetGainDb *= std::max (0.0f, 1.0f - (tameAmountNorm * currNoise * 1.5f));
+            {
+                const float maxNoise = std::max (currSib, currBr);
+                const float excessRatio = juce::jlimit (0.0f, 1.0f, (maxNoise - threshold) / (1.0f - threshold + 1e-4f));
+                targetGainDb *= std::max (0.0f, 1.0f - (0.6f + 0.4f * excessRatio));
+            }
 
-            // 2. ユーザー要望：TameNoise検出時はRange内の0dB以下に下げない (下限 0.0dB)
+            // 2. ユーザー要望：TameNoise検出時はRange内の0dB以下に下げない（下限 0.0dB）
             if (targetGainDb < 0.0f)
                 targetGainDb = 0.0f;
         }
 
-        // 7. ゲインスムージング (アタック／リリース弾道フィルター)
+        // 7. ゲインスムージング (アタック／リリースフィルター)
         if (targetGainDb < currentSmoothedGainDb)
         {
             currentSmoothedGainDb += attackCoeff * (targetGainDb - currentSmoothedGainDb);
         }
         else
         {
-            // リリース：歯擦音検出時または復帰時は専用の TameRelease 係数で素早く戻す
+            // リリース: 歯擦音または雑音検知時は専用の TameRelease (デフォルト100ms) 時定数で素早く戻す
             float activeReleaseCoeff = releaseCoeff;
-            if (currSib > 0.15f || isNoiseActive)
+            if (isNoiseActive || currSib >= threshold)
                 activeReleaseCoeff = tameReleaseCoeff;
 
             currentSmoothedGainDb += activeReleaseCoeff * (targetGainDb - currentSmoothedGainDb);

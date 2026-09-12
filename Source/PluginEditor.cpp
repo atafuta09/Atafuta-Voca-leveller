@@ -778,10 +778,12 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     tameAmountSlider.setRange (0.0, 100.0, 0.5);
     addAndMakeVisible (tameAmountSlider);
 
-    tameAmountLabel.setText ("TAME AMOUNT", juce::dontSendNotification);
+    tameAmountLabel.setText ("TAME SENS", juce::dontSendNotification);
     tameAmountLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
     tameAmountLabel.setJustificationType (juce::Justification::centredLeft);
     tameAmountLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
+    tameAmountLabel.setTooltip ("Detection Sensitivity (0-100%, Threshold: 0.85 - 0.20)");
+    tameAmountSlider.setTooltip ("Detection Sensitivity (0-100%, Threshold: 0.85 - 0.20)");
     addAndMakeVisible (tameAmountLabel);
 
     tameAmountValueLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));

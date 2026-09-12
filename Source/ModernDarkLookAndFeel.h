@@ -179,12 +179,6 @@ public:
             g.drawLine (juce::Line<float> (pInner, pTip), 2.6f);
             g.setColour (juce::Colour (0x02, 0x84, 0xc7));
             g.drawLine (juce::Line<float> (pInner, pTip), 1.4f);
-
-            const float ledR = 2.2f;
-            g.setColour (juce::Colour (0x02, 0x84, 0xc7).withAlpha (0.6f));
-            g.fillEllipse (pTip.x - ledR * 2.0f, pTip.y - ledR * 2.0f, ledR * 4.0f, ledR * 4.0f);
-            g.setColour (juce::Colours::white);
-            g.fillEllipse (pTip.x - ledR, pTip.y - ledR, ledR * 2.0f, ledR * 2.0f);
         }
         else
         {
@@ -192,14 +186,6 @@ public:
             g.drawLine (juce::Line<float> (pInner, pTip), 2.2f);
             g.setColour (juce::Colours::white);
             g.drawLine (juce::Line<float> (pInner, pTip), 1.0f);
-
-            const float ledR = 2.2f;
-            g.setColour (juce::Colour (0x3b, 0x82, 0xf6).withAlpha (0.6f));
-            g.fillEllipse (pTip.x - ledR * 2.2f, pTip.y - ledR * 2.2f, ledR * 4.4f, ledR * 4.4f);
-            g.setColour (juce::Colour (0x93, 0xc5, 0xfd).withAlpha (0.85f));
-            g.fillEllipse (pTip.x - ledR * 1.5f, pTip.y - ledR * 1.5f, ledR * 3.0f, ledR * 3.0f);
-            g.setColour (juce::Colours::white);
-            g.fillEllipse (pTip.x - ledR, pTip.y - ledR, ledR * 2.0f, ledR * 2.0f);
         }
     }
 
