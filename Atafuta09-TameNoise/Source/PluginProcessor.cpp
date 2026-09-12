@@ -148,7 +148,7 @@ void Atafuta09VocaNoiseLearnnerAudioProcessor::processBlock(juce::AudioBuffer<fl
                 bool noiseActive = false;
                 if (detSibilance && match.sibilanceScore >= threshold) noiseActive = true;
                 if (detPlosive   && match.plosiveScore   >= threshold) noiseActive = true;
-                if (detBreath    && match.breathScore    >= (threshold * 0.90f)) noiseActive = true;
+                if (detBreath    && match.breathScore    >= threshold) noiseActive = true;
 
                 meterNoiseTrigger.store(noiseActive, std::memory_order_relaxed);
             }

@@ -530,7 +530,7 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
                 bool noiseActive = false;
                 if (match.sibilanceScore >= threshold) noiseActive = true;
-                if (match.breathScore    >= (threshold * 0.90f)) noiseActive = true;
+                if (match.breathScore    >= threshold) noiseActive = true;
 
                 tameNoiseTrigger.store (isTameNoiseOn && noiseActive, std::memory_order_relaxed);
 
@@ -586,7 +586,7 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
         const float currSib   = tameNoiseSibilanceScore.load (std::memory_order_relaxed);
         const float currBr    = tameNoiseBreathScore.load (std::memory_order_relaxed);
-        const bool isNoiseActive = isTameNoiseOn && (currSib >= threshold || currBr >= (threshold * 0.90f));
+        const bool isNoiseActive = isTameNoiseOn && (currSib >= threshold || currBr >= threshold);
 
         if (isNoiseActive)
         {

@@ -357,25 +357,16 @@ public:
         res.normalScore = normalSim;
 
         // 5. マルチテンプレート照合 (Max Similarity)
-                // 5. マルチテンプレート照合 (Max Similarity)
         float rawSibScore = matchSibilance(currentSpec, zcr, highRatio);
         float rawBrScore  = matchBreath(currentSpec, zcr, highRatio);
 
-        // ブレスの音響感度補正 (広帯域ノイズ特性に合わせて1.2倍感度ブースト)
-        rawBrScore = std::min(1.0f, rawBrScore * 1.20f);
-
         // 6. 通常ボーカル対比 (Precision Vocal Masking):
+        // 歌唱部分を TameNoise として誤認識しないよう、通常歌声と類似している区間はノイズスコアを減衰
         if (normalSim > 0.30f)
         {
-            const float sibMask = std::clamp(1.0f - (normalSim - 0.30f) * 1.8f, 0.0f, 1.0f);
-            rawSibScore *= sibMask;
-        }
-
-        // ブレスのボーカルマスキング: 吸気音を誤って消さないよう、強い通常母音(RMS大・低ZCR)時のみ適用
-        if (normalSim > 0.45f && (res.rms > 0.012f || zcr < 0.22f))
-        {
-            const float brMask = std::clamp(1.0f - (normalSim - 0.45f) * 1.6f, 0.0f, 1.0f);
-            rawBrScore *= brMask;
+            const float vocalMask = std::clamp(1.0f - (normalSim - 0.30f) * 1.8f, 0.0f, 1.0f);
+            rawSibScore *= vocalMask;
+            rawBrScore  *= vocalMask;
         }
 
         // 7. ブレス専用 弾道スムーザー (Adaptive Ballistics Filter)
