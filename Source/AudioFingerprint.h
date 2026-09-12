@@ -294,10 +294,10 @@ public:
         res.rms = static_cast<float>(std::sqrt(sumSq / 512.0));
         const float zcr = static_cast<float>(zeroCrossings) / 512.0f;
 
-        if (res.rms < 0.0015f)
+        if (res.rms < 0.0008f)
         {
             res.normalScore = 0.0f;
-            smoothedBreathScore *= 0.90f; // 静寂時は自然減衰
+            smoothedBreathScore *= 0.88f; // 静寂時は自然減衰
             res.breathScore = std::clamp(smoothedBreathScore, 0.0f, 1.0f);
             return res;
         }
@@ -357,21 +357,31 @@ public:
         res.normalScore = normalSim;
 
         // 5. マルチテンプレート照合 (Max Similarity)
+                // 5. マルチテンプレート照合 (Max Similarity)
         float rawSibScore = matchSibilance(currentSpec, zcr, highRatio);
         float rawBrScore  = matchBreath(currentSpec, zcr, highRatio);
+
+        // ブレスの音響感度補正 (広帯域ノイズ特性に合わせて1.2倍感度ブースト)
+        rawBrScore = std::min(1.0f, rawBrScore * 1.20f);
 
         // 6. 通常ボーカル対比 (Precision Vocal Masking):
         if (normalSim > 0.30f)
         {
-            const float vocalMask = std::clamp(1.0f - (normalSim - 0.30f) * 1.8f, 0.0f, 1.0f);
-            rawSibScore *= vocalMask;
-            rawBrScore  *= vocalMask;
+            const float sibMask = std::clamp(1.0f - (normalSim - 0.30f) * 1.8f, 0.0f, 1.0f);
+            rawSibScore *= sibMask;
+        }
+
+        // ブレスのボーカルマスキング: 吸気音を誤って消さないよう、強い通常母音(RMS大・低ZCR)時のみ適用
+        if (normalSim > 0.45f && (res.rms > 0.012f || zcr < 0.22f))
+        {
+            const float brMask = std::clamp(1.0f - (normalSim - 0.45f) * 1.6f, 0.0f, 1.0f);
+            rawBrScore *= brMask;
         }
 
         // 7. ブレス専用 弾道スムーザー (Adaptive Ballistics Filter)
-        // ※ホールド機能は完全削除。歯擦音は即座に応答し、ブレスのみ滑らかなアタックとリリースで繋ぐ
-        const float alphaAtt = 0.85f; // ブレスのアタック（約20ms）
-        const float alphaRel = 0.10f; // ブレスのリリース（約100msでキレよく通常歌声へ接続）
+        // 素早く追従するアタック(約10ms)とキレのよいリリース(約100ms)
+        const float alphaAtt = 0.92f; // ブレスのアタック (素早く確実に立ち上がる)
+        const float alphaRel = 0.10f; // ブレスのリリース (約100msでキレよく復帰)
 
         if (rawBrScore > smoothedBreathScore)
             smoothedBreathScore += alphaAtt * (rawBrScore - smoothedBreathScore);

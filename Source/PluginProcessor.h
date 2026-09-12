@@ -31,7 +31,6 @@ namespace ParameterIDs
     inline constexpr auto tameNoiseEnable = "tame_noise_enable";
     inline constexpr auto tameNoiseListen = "tame_noise_listen";
     inline constexpr auto tameNoiseAmount  = "tame_noise_amount";
-    inline constexpr auto tameNoiseRelease = "tame_noise_release";
     inline constexpr auto scFilterEnable  = "sc_filter_enable";
 }
 
@@ -71,7 +70,6 @@ struct Preset
     bool  lookahead = true;
     bool  tameNoise = true;
     float tameAmount = 30.0f;
-    float tameRelease = 50.0f;
     bool  scFilter = true;
     int   detectionMode = 0; // 0: RMS, 1: Peak
     int   timingMode = 0;    // 0: Free, 1: Sync
@@ -218,7 +216,6 @@ private:
     std::atomic<float>* tameNoiseEnableParam = nullptr;
     std::atomic<float>* tameNoiseListenParam = nullptr;
     std::atomic<float>* tameNoiseAmountParam = nullptr;
-    std::atomic<float>* tameNoiseReleaseParam = nullptr;
     std::atomic<float>* scFilterEnableParam  = nullptr;
 
     // プリセット管理

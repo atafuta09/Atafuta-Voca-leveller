@@ -795,24 +795,6 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
         audioProcessor.getAPVTS(), ParameterIDs::tameNoiseAmount, tameAmountSlider);
 
     // TAME RELEASE ノブ (10ms ~ 500ms 調整ノブ ＆ ms数値表示)
-    tameReleaseSlider.setSliderStyle (juce::Slider::RotaryVerticalDrag);
-    tameReleaseSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    tameReleaseSlider.setRange (10.0, 500.0, 1.0);
-    addAndMakeVisible (tameReleaseSlider);
-
-    tameReleaseLabel.setText ("TAME RELEASE", juce::dontSendNotification);
-    tameReleaseLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    tameReleaseLabel.setJustificationType (juce::Justification::centredLeft);
-    tameReleaseLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
-    addAndMakeVisible (tameReleaseLabel);
-
-    tameReleaseValueLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    tameReleaseValueLabel.setJustificationType (juce::Justification::centredLeft);
-    tameReleaseValueLabel.setColour (juce::Label::textColourId, juce::Colour (0x38, 0xbd, 0xf8));
-    addAndMakeVisible (tameReleaseValueLabel);
-
-    tameReleaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-        audioProcessor.getAPVTS(), ParameterIDs::tameNoiseRelease, tameReleaseSlider);
 
     // TameNoise 検出専用 LED インジケーター
     addAndMakeVisible (tameNoiseLed);
@@ -1082,8 +1064,6 @@ void AutoLevelerAudioProcessorEditor::timerCallback()
     const float curTameAmount = static_cast<float>(tameAmountSlider.getValue());
     tameAmountValueLabel.setText (juce::String (juce::roundToInt (curTameAmount)) + "%", juce::dontSendNotification);
 
-    const float curTameRelease = static_cast<float>(tameReleaseSlider.getValue());
-    tameReleaseValueLabel.setText (juce::String (juce::roundToInt (curTameRelease)) + " ms", juce::dontSendNotification);
 
     // 専用 LED ライトのリアルタイム点灯更新
     tameNoiseLed.setIntensity (audioProcessor.getTameNoiseLedIntensity());
@@ -1350,17 +1330,6 @@ void AutoLevelerAudioProcessorEditor::resized()
     auto amountLabels = amountArea.reduced (4, 0);
     tameAmountLabel.setBounds      (amountLabels.removeFromTop (18));
     tameAmountValueLabel.setBounds (amountLabels.removeFromTop (18));
-
-    bottomRow.removeFromLeft (10); // スペーサー
-
-    // TAME RELEASE ノブ & ラベル
-    auto releaseArea = bottomRow.removeFromLeft (135);
-    auto relKnobBox = releaseArea.removeFromLeft (38).reduced (0, 2);
-    tameReleaseSlider.setBounds (relKnobBox);
-
-    auto relLabels = releaseArea.reduced (4, 0);
-    tameReleaseLabel.setBounds      (relLabels.removeFromTop (18));
-    tameReleaseValueLabel.setBounds (relLabels.removeFromTop (18));
 
     syncTargetSliderLayout();
 }

@@ -104,7 +104,7 @@ void Atafuta09VocaNoiseLearnnerAudioProcessor::processBlock(juce::AudioBuffer<fl
     const bool detBreath     = (detectBreathParam != nullptr && detectBreathParam->load() > 0.5f);
 
     // 感度に応じた閾値計算 (0.20 ~ 0.85)
-    const float threshold = 0.85f - (sensitivity * 0.65f);
+    const float threshold = 0.65f - (sensitivity * 0.50f);
 
     const float* inL = buffer.getReadPointer(0);
     const float* inR = (numChannels > 1) ? buffer.getReadPointer(1) : inL;
@@ -148,7 +148,7 @@ void Atafuta09VocaNoiseLearnnerAudioProcessor::processBlock(juce::AudioBuffer<fl
                 bool noiseActive = false;
                 if (detSibilance && match.sibilanceScore >= threshold) noiseActive = true;
                 if (detPlosive   && match.plosiveScore   >= threshold) noiseActive = true;
-                if (detBreath    && match.breathScore    >= threshold) noiseActive = true;
+                if (detBreath    && match.breathScore    >= (threshold * 0.90f)) noiseActive = true;
 
                 meterNoiseTrigger.store(noiseActive, std::memory_order_relaxed);
             }

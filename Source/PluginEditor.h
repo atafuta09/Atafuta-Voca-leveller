@@ -316,9 +316,6 @@ private:
     juce::Slider          tameAmountSlider;
     juce::Label           tameAmountLabel;
     juce::Label           tameAmountValueLabel;
-    juce::Slider          tameReleaseSlider;
-    juce::Label           tameReleaseLabel;
-    juce::Label           tameReleaseValueLabel;
 
     // トップヘッダー新設コンポーネント (プリセット、保存、ズーム、カラー、SNSリンク)
     juce::ComboBox   presetBox;
@@ -354,7 +351,6 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   tameNoiseAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   tameListenAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   tameAmountAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   tameReleaseAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AutoLevelerAudioProcessorEditor)
 };
