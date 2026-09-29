@@ -21,3 +21,6 @@ desktop.ini
 # Sub-repositories / temporary folders
 Atafuta-Vocal-Leveler/
 .claude/settings.local.json
+
+# macOS build directory
+build_mac/

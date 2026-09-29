@@ -1,6 +1,6 @@
 # Atafuta09Leveler - 取扱説明書 (User Manual)
 
-**Atafuta09Leveler** は、JUCE / C++ で開発されたプロ仕様のボーカル特化型オートレベラー（Vocal Dynamics Rider）VST3 プラグインです。  
+**Atafuta09Leveler** は、JUCE / C++ で開発されたプロ仕様のボーカル特化型オートレベラー（Vocal Dynamics Rider）プラグインです（Windows: VST3 / macOS: VST3・Audio Unit）。  
 コンプレッサーとは異なり、原音のダイナミクスや質感を損なうことなく、ボーカルの手動ボリュームオートメーション（手書きフェーダー操作）を自動化し、オケに埋もれない安定したボーカルトラックを実現します。
 
 ---

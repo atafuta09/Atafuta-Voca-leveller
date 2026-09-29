@@ -2,10 +2,11 @@
 
 ![Atafuta09Leveler](https://img.shields.io/badge/version-1.04-blue.svg)
 ![VST3](https://img.shields.io/badge/format-VST3-orange.svg)
+![AU](https://img.shields.io/badge/format-AU%20(macOS)-orange.svg)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
 ![JUCE8](https://img.shields.io/badge/JUCE-8.0.4-green.svg)
 
-**Atafuta09Leveler** は、JUCE 8 / C++20 で開発されたプロ仕様のボーカル特化型オートレベラー（Vocal Dynamics Rider）VST3 プラグインです。  
+**Atafuta09Leveler** は、JUCE 8 / C++20 で開発されたプロ仕様のボーカル特化型オートレベラー（Vocal Dynamics Rider）プラグインです（Windows: VST3 / macOS: VST3・Audio Unit）。  
 コンプレッサーの潰れた質感を与えることなく、ボーカルの手動ボリュームオートメーション（手書きフェーダー操作）を完全に自動化し、オケに埋もれない自然で安定したボーカルトラックを瞬時に作成します。
 
 ---
@@ -20,7 +21,7 @@
 - **リアルタイム波形ビジュアライザー**: 入力波形、出力波形、およびゲイン補正レーザー軌跡を60fpsで滑らかにプロット。
 - **充実のファクトリープリセット ＆ ユーザープリセット保存**:
   - `Default`、`Synth Vocal`（合成音声・打ち込みボーカル特化）、`Podcast`、`Aggressive Leveler` など全8種内蔵。
-  - **`SAVE` ボタン** により、自作プリセットを `%APPDATA%` に安全に永続化保存可能。
+  - **`SAVE` ボタン** により、自作プリセットを `%APPDATA%`（Windows）/ `~/Library`（macOS）に安全に永続化保存可能。
 - **ピークホールド付きマルチメーター**: Peak（1.5秒ホールドライン付）、RMS、VU-18（0 VU = -18 dBFS、レッドゾーン警告付）を切替可能。
 - **プロセッシングフィルター**:
   - **Lookahead (5ms)**: 先読みバッファ（DAW遅延補正対応）によりアタックの頭潰れを完全防止。
@@ -41,9 +42,33 @@
 
 - **言語**: C++20 / C++17
 - **フレームワーク**: JUCE 8 (8.0.4)
-- **ビルドツール**: CMake 3.22+, Visual Studio 2022/2026 (MSVC)
-- **プラグイン形式**: VST3 (64-bit)
+- **ビルドツール**: CMake 3.22+
+  - Windows: Visual Studio 2022/2026 (MSVC) + Ninja
+  - macOS: Xcode（Ninja があれば Ninja を優先）
+- **プラグイン形式**:
+  - Windows: VST3 (64-bit)
+  - macOS: VST3 / Audio Unit (AUv2)、Apple Silicon + Intel ユニバーサルバイナリ、macOS 12 以降
 - **プラグイン表示名**: `Atafuta09Leveler`
+
+### ビルド方法
+
+**Windows**
+
+```bat
+build_plugin.bat
+```
+
+**macOS**
+
+```sh
+./build_plugin_mac.sh            # build_mac/AutoLeveler_artefacts/Release/ に VST3 と AU を生成
+./build_plugin_mac.sh --install  # ビルド後に ~/Library/Audio/Plug-Ins/{VST3,Components} へコピー
+```
+
+- 手動で配置する場合は、`Atafuta09Leveler.vst3` を `~/Library/Audio/Plug-Ins/VST3/`、`Atafuta09Leveler.component` を `~/Library/Audio/Plug-Ins/Components/` にコピーします。
+- AU が DAW に表示されない場合は、`killall -9 AudioComponentRegistrar` を実行してから DAW を再起動してください。
+- AU の動作検証: `auval -v aufx AtLv Ataf`
+- ローカルビルドは ad-hoc 署名です。他の Mac へ配布する場合は Developer ID 署名と公証（notarization）が必要です。
 
 ---
 

@@ -3,12 +3,21 @@ cmake_minimum_required(VERSION 3.22)
 # ==============================================================================
 # Atafuta09Leveler - Vocal Dynamics Rider Plugin
 # ==============================================================================
+# macOS: Apple Silicon / Intel 両対応のユニバーサルバイナリ、対応 OS は macOS 12 以降（現行 Xcode の下限）
+# （project() より前に設定する必要がある。-D で上書き可能）
+if(APPLE)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS build architectures")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version")
+endif()
+
 project(Atafuta09Leveler VERSION 1.0.4 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ビルド後にDAWのVST3フォルダ (C:\Program Files\Common Files\VST3) へ自動コピーする設定
+# ビルド後にシステムのプラグインフォルダへ自動コピーする設定
+#   Windows: C:\Program Files\Common Files\VST3
+#   macOS  : ~/Library/Audio/Plug-Ins/VST3 および ~/Library/Audio/Plug-Ins/Components (AU)
 option(COPY_PLUGIN_AFTER_BUILD "Copy plugin to system VST3 directory after build" TRUE)
 
 # ==============================================================================
@@ -34,13 +43,22 @@ if(NOT TARGET juce::juce_core)
 endif()
 
 # ==============================================================================
-# プラグインターゲットの定義 (VST3)
+# プラグインターゲットの定義 (Windows: VST3 / macOS: VST3 + AU)
 # ==============================================================================
+if(APPLE)
+    set(ATAFUTA_PLUGIN_FORMATS VST3 AU)
+else()
+    set(ATAFUTA_PLUGIN_FORMATS VST3)
+endif()
+
 juce_add_plugin(AutoLeveler
     COMPANY_NAME "AtafutaAudio"
     PLUGIN_MANUFACTURER_CODE Ataf
     PLUGIN_CODE AtLv
-    FORMATS VST3
+    FORMATS ${ATAFUTA_PLUGIN_FORMATS}
+    BUNDLE_ID "com.atafutaaudio.atafuta09leveler"
+    AU_MAIN_TYPE kAudioUnitType_Effect
+    VST3_CATEGORIES Fx Dynamics
     PRODUCT_NAME "Atafuta09Leveler"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE

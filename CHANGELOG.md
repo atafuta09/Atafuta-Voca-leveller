@@ -4,6 +4,16 @@
 
 ---
 
+## [Unreleased]
+### 追加機能
+- **macOS 対応（VST3 / Audio Unit）**:
+  - macOS では VST3 に加えて Audio Unit（AUv2、`aufx AtLv Ataf`）をビルド。Apple Silicon / Intel のユニバーサルバイナリ、macOS 12 以降に対応。
+  - macOS 用ビルドスクリプト `build_plugin_mac.sh`（`--install` で `~/Library/Audio/Plug-Ins/` へコピー）を追加。
+  - VST3 カテゴリを `Fx|Dynamics` に設定。
+  - macOS でのユーザープリセット保存先は `~/Library/Atafuta09/Atafuta09Leveler/user_presets.xml`。
+
+---
+
 ## [Ver 1.04] - 2026-09-11
 ### 追加機能
 - **高コントラスト・ホワイトモード（White Mode）の実装**:
