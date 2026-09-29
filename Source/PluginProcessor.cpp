@@ -19,60 +19,35 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     detectionModeParam   = apvts.getRawParameterValue (ParameterIDs::detectionMode);
     timingModeParam      = apvts.getRawParameterValue (ParameterIDs::timingMode);
     syncSpeedParam       = apvts.getRawParameterValue (ParameterIDs::syncSpeed);
-    meterModeParam       = apvts.getRawParameterValue (ParameterIDs::meterMode);
     guiEnableParam       = apvts.getRawParameterValue (ParameterIDs::guiEnable);
     bypassParam          = apvts.getRawParameterValue (ParameterIDs::bypass);
 
-    // 8つの実践的ファクトリープリセットの初期化
-    // 1. Default (標準)
-    presets.push_back ({ "Default", 0.0f, -12.0f, 6.0f, 50.0f, 0.0f, true, false, false, 0, 0, 1 });
-    // 2. Synth Vocal (合成音声・打ち込みボーカル特化)
-    presets.push_back ({ "Synth Vocal", 0.0f, -14.0f, 6.0f, 75.0f, 0.0f, true, true, true, 0, 0, 1 });
-    // 3. Gentle Vocal Ride (自然な音量均一化)
-    presets.push_back ({ "Gentle Vocal Ride", 0.0f, -14.0f, 4.0f, 35.0f, 0.0f, true, true, false, 0, 0, 1 });
-    // 4. Aggressive Leveler (ロック・激しいボーカル向け)
-    presets.push_back ({ "Aggressive Leveler", 0.0f, -10.0f, 10.0f, 75.0f, 0.0f, true, true, true, 0, 0, 1 });
-    // 5. Fast Peak Tamer (ピーク抑制)
-    presets.push_back ({ "Fast Peak Tamer", 0.0f, -8.0f, 6.0f, 90.0f, 0.0f, true, false, true, 1, 0, 1 });
-    // 6. BPM Sync 1/4 (Mid) (テンポ同期ノーマル)
-    presets.push_back ({ "BPM Sync 1/4 (Mid)", 0.0f, -12.0f, 6.0f, 50.0f, 0.0f, true, false, false, 0, 1, 1 });
-    // 7. Podcast / Voiceover (配信・ナレーション)
-    presets.push_back ({ "Podcast / Voiceover", 0.0f, -16.0f, 8.0f, 45.0f, 0.0f, true, true, true, 0, 0, 1 });
-    // 8. Ballad Vocal (バラード向けスロー)
-    presets.push_back ({ "Ballad Vocal", 0.0f, -15.0f, 5.0f, 25.0f, 0.0f, true, true, false, 0, 0, 1 });
+    for (auto* param : { inputGainParam, targetLevelParam, rangeParam, speedParam, outputGainParam,
+                         lookaheadEnableParam, breathFilterParam, sibilanceFilterParam, detectionModeParam,
+                         timingModeParam, syncSpeedParam, guiEnableParam, bypassParam })
+        jassertquiet (param != nullptr);
+
+    // 8つの実践的ファクトリープリセット
+    // 値の順: InGain, Target, Range, Speed, OutGain, Lookahead, Breath, Sibilance, Det(0:RMS/1:Peak), Timing(0:Free/1:Sync), SyncSpeed(0:Fast/1:Mid/2:Slow)
+    presets = {
+        { "Default",             { 0.0f, -12.0f,  6.0f, 50.0f, 0.0f, 1, 0, 0, 0, 0, 1 } }, // 標準
+        { "Synth Vocal",         { 0.0f, -14.0f,  6.0f, 75.0f, 0.0f, 1, 1, 1, 0, 0, 1 } }, // 合成音声・打ち込みボーカル特化
+        { "Gentle Vocal Ride",   { 0.0f, -14.0f,  4.0f, 35.0f, 0.0f, 1, 1, 0, 0, 0, 1 } }, // 自然な音量均一化
+        { "Aggressive Leveler",  { 0.0f, -10.0f, 10.0f, 75.0f, 0.0f, 1, 1, 1, 0, 0, 1 } }, // ロック・激しいボーカル向け
+        { "Fast Peak Tamer",     { 0.0f,  -8.0f,  6.0f, 90.0f, 0.0f, 1, 0, 1, 1, 0, 1 } }, // ピーク抑制
+        { "BPM Sync 1/4 (Mid)",  { 0.0f, -12.0f,  6.0f, 50.0f, 0.0f, 1, 0, 0, 0, 1, 1 } }, // テンポ同期ノーマル
+        { "Podcast / Voiceover", { 0.0f, -16.0f,  8.0f, 45.0f, 0.0f, 1, 1, 1, 0, 0, 1 } }, // 配信・ナレーション
+        { "Ballad Vocal",        { 0.0f, -15.0f,  5.0f, 25.0f, 0.0f, 1, 1, 0, 0, 0, 1 } }, // バラード向けスロー
+    };
     jassert (presets.size() == numFactoryPresets);
 
     // ユーザー保存プリセットの読み込み
     loadUserPresets();
 }
 
-AutoLevelerAudioProcessor::~AutoLevelerAudioProcessor()
-{
-}
-
 const juce::String AutoLevelerAudioProcessor::getName() const
 {
     return "Atafuta09Leveler";
-}
-
-bool AutoLevelerAudioProcessor::acceptsMidi() const
-{
-    return false;
-}
-
-bool AutoLevelerAudioProcessor::producesMidi() const
-{
-    return false;
-}
-
-bool AutoLevelerAudioProcessor::isMidiEffect() const
-{
-    return false;
-}
-
-double AutoLevelerAudioProcessor::getTailLengthSeconds() const
-{
-    return 0.0;
 }
 
 int AutoLevelerAudioProcessor::getNumPrograms()
@@ -93,28 +68,9 @@ void AutoLevelerAudioProcessor::setCurrentProgram (int index)
     currentProgram = index;
     const auto& p = presets[static_cast<size_t>(index)];
 
-    if (auto* param = apvts.getParameter (ParameterIDs::inputGain))
-        param->setValueNotifyingHost (param->convertTo0to1 (p.inGain));
-    if (auto* param = apvts.getParameter (ParameterIDs::targetLevel))
-        param->setValueNotifyingHost (param->convertTo0to1 (p.targetLevel));
-    if (auto* param = apvts.getParameter (ParameterIDs::range))
-        param->setValueNotifyingHost (param->convertTo0to1 (p.range));
-    if (auto* param = apvts.getParameter (ParameterIDs::speed))
-        param->setValueNotifyingHost (param->convertTo0to1 (p.speed));
-    if (auto* param = apvts.getParameter (ParameterIDs::outputGain))
-        param->setValueNotifyingHost (param->convertTo0to1 (p.outGain));
-    if (auto* param = apvts.getParameter (ParameterIDs::lookaheadEnable))
-        param->setValueNotifyingHost (p.lookahead ? 1.0f : 0.0f);
-    if (auto* param = apvts.getParameter (ParameterIDs::breathFilter))
-        param->setValueNotifyingHost (p.breathFilter ? 1.0f : 0.0f);
-    if (auto* param = apvts.getParameter (ParameterIDs::sibilanceFilter))
-        param->setValueNotifyingHost (p.sibilanceFilter ? 1.0f : 0.0f);
-    if (auto* param = apvts.getParameter (ParameterIDs::detectionMode))
-        param->setValueNotifyingHost (param->convertTo0to1 (static_cast<float>(p.detectionMode)));
-    if (auto* param = apvts.getParameter (ParameterIDs::timingMode))
-        param->setValueNotifyingHost (param->convertTo0to1 (static_cast<float>(p.timingMode)));
-    if (auto* param = apvts.getParameter (ParameterIDs::syncSpeed))
-        param->setValueNotifyingHost (param->convertTo0to1 (static_cast<float>(p.syncSpeed)));
+    for (size_t i = 0; i < presetParams.size(); ++i)
+        if (auto* param = apvts.getParameter (presetParams[i].paramID))
+            param->setValueNotifyingHost (param->convertTo0to1 (p.values[i]));
 }
 
 const juce::String AutoLevelerAudioProcessor::getProgramName (int index)
@@ -154,54 +110,32 @@ void AutoLevelerAudioProcessor::loadUserPresets()
     if (xml == nullptr || !xml->hasTagName ("UserPresets"))
         return;
 
-    for (auto* child : xml->getChildIterator())
-    {
-        if (child != nullptr && child->hasTagName ("Preset"))
-        {
-            Preset p;
-            p.name            = child->getStringAttribute ("name", "User Preset");
-            p.inGain          = static_cast<float>(child->getDoubleAttribute ("inGain", 0.0));
-            p.targetLevel     = static_cast<float>(child->getDoubleAttribute ("target", -12.0));
-            p.range           = static_cast<float>(child->getDoubleAttribute ("range", 6.0));
-            p.speed           = static_cast<float>(child->getDoubleAttribute ("speed", 50.0));
-            p.outGain         = static_cast<float>(child->getDoubleAttribute ("outGain", 0.0));
-            p.lookahead       = child->getBoolAttribute ("lookahead", true);
-            p.breathFilter    = child->getBoolAttribute ("breath", false);
-            p.sibilanceFilter = child->getBoolAttribute ("sibilance", false);
-            p.detectionMode   = child->getIntAttribute ("det", 0);
-            p.timingMode      = child->getIntAttribute ("timing", 0);
-            p.syncSpeed       = child->getIntAttribute ("syncSpeed", 1);
+    // 属性が欠けていたら Default プリセットの値で補う
+    const auto& defaults = presets.front().values;
 
-            presets.push_back (p);
-        }
+    for (auto* child : xml->getChildWithTagNameIterator ("Preset"))
+    {
+        Preset p { child->getStringAttribute ("name", "User Preset"), defaults };
+        for (size_t i = 0; i < presetParams.size(); ++i)
+            p.values[i] = static_cast<float>(child->getDoubleAttribute (presetParams[i].xmlAttribute, defaults[i]));
+        presets.push_back (p);
     }
 }
 
 void AutoLevelerAudioProcessor::saveUserPresetsToFile()
 {
-    const auto file = getUserPresetFile();
-    auto rootXml = std::make_unique<juce::XmlElement> ("UserPresets");
+    juce::XmlElement rootXml ("UserPresets");
 
     // ファクトリープリセットの後ろがユーザー追加プリセット
     for (size_t i = numFactoryPresets; i < presets.size(); ++i)
     {
-        const auto& p = presets[i];
-        auto* child = rootXml->createNewChildElement ("Preset");
-        child->setAttribute ("name", p.name);
-        child->setAttribute ("inGain", static_cast<double>(p.inGain));
-        child->setAttribute ("target", static_cast<double>(p.targetLevel));
-        child->setAttribute ("range", static_cast<double>(p.range));
-        child->setAttribute ("speed", static_cast<double>(p.speed));
-        child->setAttribute ("outGain", static_cast<double>(p.outGain));
-        child->setAttribute ("lookahead", p.lookahead);
-        child->setAttribute ("breath", p.breathFilter);
-        child->setAttribute ("sibilance", p.sibilanceFilter);
-        child->setAttribute ("det", p.detectionMode);
-        child->setAttribute ("timing", p.timingMode);
-        child->setAttribute ("syncSpeed", p.syncSpeed);
+        auto* child = rootXml.createNewChildElement ("Preset");
+        child->setAttribute ("name", presets[i].name);
+        for (size_t j = 0; j < presetParams.size(); ++j)
+            child->setAttribute (presetParams[j].xmlAttribute, static_cast<double>(presets[i].values[j]));
     }
 
-    rootXml->writeTo (file, {});
+    rootXml.writeTo (getUserPresetFile(), {});
 }
 
 bool AutoLevelerAudioProcessor::saveUserPreset (const juce::String& presetName)
@@ -209,19 +143,9 @@ bool AutoLevelerAudioProcessor::saveUserPreset (const juce::String& presetName)
     if (presetName.trim().isEmpty())
         return false;
 
-    Preset newPreset;
-    newPreset.name            = presetName.trim();
-    newPreset.inGain          = inputGainParam != nullptr ? inputGainParam->load() : 0.0f;
-    newPreset.targetLevel     = targetLevelParam != nullptr ? targetLevelParam->load() : -12.0f;
-    newPreset.range           = rangeParam != nullptr ? rangeParam->load() : 6.0f;
-    newPreset.speed           = speedParam != nullptr ? speedParam->load() : 50.0f;
-    newPreset.outGain         = outputGainParam != nullptr ? outputGainParam->load() : 0.0f;
-    newPreset.lookahead       = lookaheadEnableParam != nullptr ? (lookaheadEnableParam->load() > 0.5f) : true;
-    newPreset.breathFilter    = breathFilterParam != nullptr ? (breathFilterParam->load() > 0.5f) : false;
-    newPreset.sibilanceFilter = sibilanceFilterParam != nullptr ? (sibilanceFilterParam->load() > 0.5f) : false;
-    newPreset.detectionMode   = detectionModeParam != nullptr ? juce::roundToInt (detectionModeParam->load()) : 0;
-    newPreset.timingMode      = timingModeParam != nullptr ? juce::roundToInt (timingModeParam->load()) : 0;
-    newPreset.syncSpeed       = syncSpeedParam != nullptr ? juce::roundToInt (syncSpeedParam->load()) : 1;
+    Preset newPreset { presetName.trim(), {} };
+    for (size_t i = 0; i < presetParams.size(); ++i)
+        newPreset.values[i] = apvts.getRawParameterValue (presetParams[i].paramID)->load();
 
     presets.push_back (newPreset);
     currentProgram = static_cast<int>(presets.size()) - 1;
@@ -248,28 +172,26 @@ void AutoLevelerAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 
     // 1. Lookaheadディレイ（22.5ms）のサンプル数計算
     lookaheadSamples = juce::jmax (1, juce::roundToInt (currentSampleRate * (lookaheadMs * 0.001f)));
-    const bool isLookaheadOn = (lookaheadEnableParam != nullptr && lookaheadEnableParam->load() > 0.5f);
+    const bool isLookaheadOn = lookaheadEnableParam->load() > 0.5f;
     setLatencySamples (isLookaheadOn ? lookaheadSamples : 0);
 
-    // ディレイバッファの初期化（ブロックサイズ + ルックアヘッド分を確保）
-    delayBufferSize = lookaheadSamples + samplesPerBlock + 64;
-    const int totalChannels = juce::jmax (1, getTotalNumInputChannels());
-    delayBuffer.setSize (totalChannels, delayBufferSize);
-    delayBuffer.clear();
-    delayBufferWritePos = 0;
+    lookaheadDelay.prepare ({ currentSampleRate, static_cast<juce::uint32>(juce::jmax (1, samplesPerBlock)),
+                              static_cast<juce::uint32>(juce::jmax (1, getTotalNumInputChannels())) });
+    lookaheadDelay.setMaximumDelayInSamples (lookaheadSamples);
+    lookaheadDelay.setDelay (static_cast<float>(lookaheadSamples));
 
     // 2. ゲインスムージング初期化
     smoothedInputGainDb.reset (currentSampleRate, 0.02);
-    smoothedInputGainDb.setCurrentAndTargetValue (inputGainParam != nullptr ? inputGainParam->load() : 0.0f);
+    smoothedInputGainDb.setCurrentAndTargetValue (inputGainParam->load());
 
     smoothedOutputGainDb.reset (currentSampleRate, 0.02);
-    smoothedOutputGainDb.setCurrentAndTargetValue (outputGainParam != nullptr ? outputGainParam->load() : 0.0f);
+    smoothedOutputGainDb.setCurrentAndTargetValue (outputGainParam->load());
 
     lookaheadMix.reset (currentSampleRate, 0.02);
     lookaheadMix.setCurrentAndTargetValue (isLookaheadOn ? 1.0f : 0.0f);
 
     bypassMix.reset (currentSampleRate, 0.02);
-    bypassMix.setCurrentAndTargetValue ((bypassParam != nullptr && bypassParam->load() > 0.5f) ? 1.0f : 0.0f);
+    bypassMix.setCurrentAndTargetValue (bypassParam->load() > 0.5f ? 1.0f : 0.0f);
 
     // 3. 歯擦音・ブレス用サイドチェーンバンドパスフィルターの初期化
     sidechainHPF.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass (currentSampleRate, 150.0f);
@@ -293,11 +215,6 @@ void AutoLevelerAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     gainChangeAccumDb = 0.0f;
 
     visualFifo.reset();
-}
-
-void AutoLevelerAudioProcessor::releaseResources()
-{
-    delayBuffer.setSize (0, 0);
 }
 
 void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
@@ -330,19 +247,20 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     // -------------------------------------------------------------
     // 2. パラメーター取得 (Lock-Free)
     // -------------------------------------------------------------
-    const float inGainDb          = inputGainParam       != nullptr ? inputGainParam->load (std::memory_order_relaxed)       : 0.0f;
-    const float targetLevelDb     = targetLevelParam     != nullptr ? targetLevelParam->load (std::memory_order_relaxed)     : -12.0f;
-    const float rangeDb           = rangeParam           != nullptr ? rangeParam->load (std::memory_order_relaxed)           : 6.0f;
-    const float speedVal          = speedParam           != nullptr ? speedParam->load (std::memory_order_relaxed)           : 50.0f;
-    const float outGainDb         = outputGainParam      != nullptr ? outputGainParam->load (std::memory_order_relaxed)      : 0.0f;
-    const bool isLookaheadOn      = lookaheadEnableParam != nullptr && (lookaheadEnableParam->load (std::memory_order_relaxed) > 0.5f);
-    const bool isBreathFilterOn   = breathFilterParam    != nullptr && (breathFilterParam->load (std::memory_order_relaxed)    > 0.5f);
-    const bool isSibilanceFilterOn= sibilanceFilterParam != nullptr && (sibilanceFilterParam->load (std::memory_order_relaxed) > 0.5f);
-    const bool isPeakDetection    = detectionModeParam   != nullptr && (detectionModeParam->load (std::memory_order_relaxed)   > 0.5f);
-    const bool isSyncMode         = timingModeParam      != nullptr && (timingModeParam->load (std::memory_order_relaxed)      > 0.5f);
-    const int syncSpeedChoice     = syncSpeedParam       != nullptr ? juce::roundToInt (syncSpeedParam->load (std::memory_order_relaxed)) : 1;
-    const bool isGuiEnabled       = guiEnableParam       != nullptr && (guiEnableParam->load (std::memory_order_relaxed)       > 0.5f);
-    const bool isBypassed         = bypassParam          != nullptr && (bypassParam->load (std::memory_order_relaxed)          > 0.5f);
+    constexpr auto relaxed = std::memory_order_relaxed;
+    const float inGainDb           = inputGainParam->load (relaxed);
+    const float targetLevelDb      = targetLevelParam->load (relaxed);
+    const float rangeDb            = rangeParam->load (relaxed);
+    const float speedVal           = speedParam->load (relaxed);
+    const float outGainDb          = outputGainParam->load (relaxed);
+    const bool isLookaheadOn       = lookaheadEnableParam->load (relaxed) > 0.5f;
+    const bool isBreathFilterOn    = breathFilterParam->load (relaxed)    > 0.5f;
+    const bool isSibilanceFilterOn = sibilanceFilterParam->load (relaxed) > 0.5f;
+    const bool isPeakDetection     = detectionModeParam->load (relaxed)   > 0.5f;
+    const bool isSyncMode          = timingModeParam->load (relaxed)      > 0.5f;
+    const int syncSpeedChoice      = juce::roundToInt (syncSpeedParam->load (relaxed));
+    const bool isGuiEnabled        = guiEnableParam->load (relaxed)       > 0.5f;
+    const bool isBypassed          = bypassParam->load (relaxed)          > 0.5f;
 
     // Lookahead切り替えに伴うDAWレイテンシー報告（バイパス時もドライを同じだけ遅らせるので固定）
     const int targetLatency = isLookaheadOn ? lookaheadSamples : 0;
@@ -387,24 +305,20 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         const float gainedSampleL = inL[n] * curInGainLinear;
         const float gainedSampleR = inR[n] * curInGainLinear;
 
-        // B. Lookaheadディレイバッファへの書き込み（バイパス用ドライと共用するため Input Gain 前の原音）
-        delayBuffer.setSample (0, delayBufferWritePos, inL[n]);
+        // B. Lookahead ディレイ（バイパス用ドライと共用するため Input Gain 前の原音を遅らせる）
+        lookaheadDelay.pushSample (0, inL[n]);
+        const float lookedL = lookaheadDelay.popSample (0);
+        float lookedR = lookedL;
         if (totalNumInputChannels > 1)
-            delayBuffer.setSample (1, delayBufferWritePos, inR[n]);
+        {
+            lookaheadDelay.pushSample (1, inR[n]);
+            lookedR = lookaheadDelay.popSample (1);
+        }
 
-        // C. 遅延サンプルの読み出し (22.5ms前と現在サンプルを 20ms クロスフェードし、Lookahead 切替時のクリックを防ぐ)
-        int readPos = delayBufferWritePos - lookaheadSamples;
-        if (readPos < 0)
-            readPos += delayBufferSize;
-
+        // C. 22.5ms 前と現在サンプルを 20ms クロスフェード（Lookahead 切替時のクリック防止）
         const float laMix = lookaheadMix.getNextValue();
-        const float lookedL = delayBuffer.getSample (0, readPos);
-        const float lookedR = (totalNumInputChannels > 1) ? delayBuffer.getSample (1, readPos) : lookedL;
         const float delayedSampleL = inL[n] + laMix * (lookedL - inL[n]);
         const float delayedSampleR = inR[n] + laMix * (lookedR - inR[n]);
-
-        if (++delayBufferWritePos >= delayBufferSize)
-            delayBufferWritePos = 0;
 
         // D. サイドチェーン入力の準備
         const float monoDetectorInput = 0.5f * (gainedSampleL + gainedSampleR);
@@ -506,13 +420,7 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
                 gainChangeAccumDb     = 0.0f;
                 downsampleCounter     = 0;
 
-                int start1, size1, start2, size2;
-                visualFifo.prepareToWrite (1, start1, size1, start2, size2);
-                if (size1 > 0)
-                {
-                    visualFifoBuffer[static_cast<size_t>(start1)] = point;
-                    visualFifo.finishedWrite (1);
-                }
+                visualFifo.write (1).forEach ([&] (int index) { visualFifoBuffer[static_cast<size_t>(index)] = point; });
             }
         }
     }
@@ -542,25 +450,9 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
 int AutoLevelerAudioProcessor::readVisualData (VisualDataPoint* destination, int maxPointsToRead)
 {
-    if (destination == nullptr || maxPointsToRead <= 0)
-        return 0;
-
-    const int numReady = visualFifo.getNumReady();
-    const int numToRead = std::min (numReady, maxPointsToRead);
-    if (numToRead <= 0)
-        return 0;
-
-    int start1, size1, start2, size2;
-    visualFifo.prepareToRead (numToRead, start1, size1, start2, size2);
-
-    if (size1 > 0)
-        std::copy_n (&visualFifoBuffer[static_cast<size_t>(start1)], size1, destination);
-
-    if (size2 > 0)
-        std::copy_n (&visualFifoBuffer[static_cast<size_t>(start2)], size2, destination + size1);
-
-    visualFifo.finishedRead (numToRead);
-    return numToRead;
+    int numRead = 0;
+    visualFifo.read (maxPointsToRead).forEach ([&] (int index) { destination[numRead++] = visualFifoBuffer[static_cast<size_t>(index)]; });
+    return numRead;
 }
 
 bool AutoLevelerAudioProcessor::hasEditor() const
@@ -592,121 +484,29 @@ void AutoLevelerAudioProcessor::setStateInformation (const void* data, int sizeI
 
 juce::AudioProcessorValueTreeState::ParameterLayout AutoLevelerAudioProcessor::createParameterLayout()
 {
-    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    using Float  = juce::AudioParameterFloat;
+    using Bool   = juce::AudioParameterBool;
+    using Choice = juce::AudioParameterChoice;
+    const auto dB = juce::AudioParameterFloatAttributes().withLabel ("dB");
+    const auto id = [] (const char* paramID) { return juce::ParameterID { paramID, 1 }; };
 
-    // 1. Input Gain (-18 dB ~ +18 dB, デフォルト 0 dB)
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::inputGain, 1 },
-        "Input Gain",
-        juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),
-        0.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("dB")
-    ));
-
-    // 2. Target Level (-36 dB ~ 0 dB, デフォルト -12 dB)
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::targetLevel, 1 },
-        "Target Level",
-        juce::NormalisableRange<float> (-36.0f, 0.0f, 0.1f),
-        -12.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("dB")
-    ));
-
-    // 3. Reduction Range (0 dB ~ 13 dB, 0.1 dB刻み, デフォルト 6 dB)
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::range, 1 },
-        "Range",
-        juce::NormalisableRange<float> (0.0f, 13.0f, 0.1f),
-        6.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("dB")
-    ));
-
-    // 4. Speed (0% ~ 100%, デフォルト 50%)
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::speed, 1 },
-        "Speed",
-        juce::NormalisableRange<float> (0.0f, 100.0f, 0.1f),
-        50.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("%")
-    ));
-
-    // 5. Output Gain (-18 dB ~ +18 dB, デフォルト 0 dB)
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::outputGain, 1 },
-        "Output Gain",
-        juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),
-        0.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("dB")
-    ));
-
-    // 6. Lookahead Enable (トグル, デフォルト ON)
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::lookaheadEnable, 1 },
-        "Lookahead",
-        true
-    ));
-
-    // 7. Breath Filter (トグル, デフォルト OFF)
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::breathFilter, 1 },
-        "Breath Filter",
-        false
-    ));
-
-    // 8. Sibilance Filter (トグル, デフォルト OFF)
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::sibilanceFilter, 1 },
-        "Sibilance Filter",
-        false
-    ));
-
-    // 9. Detection Mode (RMS: 0 [デフォルト], Peak: 1)
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { ParameterIDs::detectionMode, 1 },
-        "Detection Mode",
-        juce::StringArray { "RMS", "Peak" },
-        0
-    ));
-
-    // 10. Timing Mode (Free: 0 [デフォルト], Sync: 1)
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { ParameterIDs::timingMode, 1 },
-        "Timing Mode",
-        juce::StringArray { "Free (ms)", "Sync (BPM)" },
-        0
-    ));
-
-    // 11. Sync Speed Mode (Fast: 0, Mid: 1 [デフォルト], Slow: 2)
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { ParameterIDs::syncSpeed, 1 },
-        "Sync Speed",
-        juce::StringArray { "Fast", "Mid", "Slow" },
-        1
-    ));
-
-    // 12. Meter Mode (Peak: 0 [デフォルト], RMS: 1, VU-18: 2)
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { ParameterIDs::meterMode, 1 },
-        "Meter Mode",
-        juce::StringArray { "Peak", "RMS", "VU-18" },
-        0
-    ));
-
-    // 13. GUI Enable (描画ON/OFF トグル, デフォルト ON)
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::guiEnable, 1 },
-        "GUI Enable",
-        true
-    ));
-
-    // 14. Bypass (バイパス トグル, デフォルト OFF)
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::bypass, 1 },
-        "Bypass",
-        false
-    ));
-
-    return { params.begin(), params.end() };
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    layout.add (std::make_unique<Float>  (id (ParameterIDs::inputGain),       "Input Gain",       juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),  0.0f, dB),
+                std::make_unique<Float>  (id (ParameterIDs::targetLevel),     "Target Level",     juce::NormalisableRange<float> (-36.0f,  0.0f, 0.1f), -12.0f, dB),
+                std::make_unique<Float>  (id (ParameterIDs::range),           "Range",            juce::NormalisableRange<float> (  0.0f, 13.0f, 0.1f),  6.0f, dB),
+                std::make_unique<Float>  (id (ParameterIDs::speed),           "Speed",            juce::NormalisableRange<float> (  0.0f, 100.0f, 0.1f), 50.0f,
+                                          juce::AudioParameterFloatAttributes().withLabel ("%")),
+                std::make_unique<Float>  (id (ParameterIDs::outputGain),      "Output Gain",      juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),  0.0f, dB),
+                std::make_unique<Bool>   (id (ParameterIDs::lookaheadEnable), "Lookahead",        true),
+                std::make_unique<Bool>   (id (ParameterIDs::breathFilter),    "Breath Filter",    false),
+                std::make_unique<Bool>   (id (ParameterIDs::sibilanceFilter), "Sibilance Filter", false),
+                std::make_unique<Choice> (id (ParameterIDs::detectionMode),   "Detection Mode",   juce::StringArray { "RMS", "Peak" }, 0),
+                std::make_unique<Choice> (id (ParameterIDs::timingMode),      "Timing Mode",      juce::StringArray { "Free (ms)", "Sync (BPM)" }, 0),
+                std::make_unique<Choice> (id (ParameterIDs::syncSpeed),       "Sync Speed",       juce::StringArray { "Fast", "Mid", "Slow" }, 1),
+                std::make_unique<Choice> (id (ParameterIDs::meterMode),       "Meter Mode",       juce::StringArray { "Peak", "RMS", "VU-18" }, 0),
+                std::make_unique<Bool>   (id (ParameterIDs::guiEnable),       "GUI Enable",       true),
+                std::make_unique<Bool>   (id (ParameterIDs::bypass),          "Bypass",           false));
+    return layout;
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

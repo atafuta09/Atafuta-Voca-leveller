@@ -1,12 +1,9 @@
 #pragma once
 
-#if __has_include(<JuceHeader.h>)
- #include <JuceHeader.h>
-#else
- #include <juce_audio_processors/juce_audio_processors.h>
- #include <juce_dsp/juce_dsp.h>
-#endif
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
 
+#include <array>
 #include <vector>
 #include <atomic>
 #include <cmath>
@@ -62,32 +59,45 @@ struct TimingMs
 };
 
 /**
- * ファクトリープリセット情報
+ * プリセットに含めるパラメーターと、ユーザープリセット XML での属性名
+ * (属性名は既存の user_presets.xml との互換のため変えない)
+ */
+struct PresetParam
+{
+    const char* paramID;
+    const char* xmlAttribute;
+};
+
+inline constexpr std::array<PresetParam, 11> presetParams {{
+    { ParameterIDs::inputGain,       "inGain"    },
+    { ParameterIDs::targetLevel,     "target"    },
+    { ParameterIDs::range,           "range"     },
+    { ParameterIDs::speed,           "speed"     },
+    { ParameterIDs::outputGain,      "outGain"   },
+    { ParameterIDs::lookaheadEnable, "lookahead" },
+    { ParameterIDs::breathFilter,    "breath"    },
+    { ParameterIDs::sibilanceFilter, "sibilance" },
+    { ParameterIDs::detectionMode,   "det"       }, // 0: RMS, 1: Peak
+    { ParameterIDs::timingMode,      "timing"    }, // 0: Free, 1: Sync
+    { ParameterIDs::syncSpeed,       "syncSpeed" }, // 0: Fast, 1: Mid, 2: Slow
+}};
+
+/**
+ * プリセット情報 (values は presetParams と同じ順の実値)
  */
 struct Preset
 {
     juce::String name;
-    float inGain = 0.0f;
-    float targetLevel = -12.0f;
-    float range = 6.0f;
-    float speed = 50.0f;
-    float outGain = 0.0f;
-    bool  lookahead = true;
-    bool  breathFilter = false;
-    bool  sibilanceFilter = false;
-    int   detectionMode = 0; // 0: RMS, 1: Peak
-    int   timingMode = 0;    // 0: Free, 1: Sync
-    int   syncSpeed = 1;     // 0: Fast, 1: Mid, 2: Slow
+    std::array<float, presetParams.size()> values;
 };
 
 class AutoLevelerAudioProcessor : public juce::AudioProcessor
 {
 public:
     AutoLevelerAudioProcessor();
-    ~AutoLevelerAudioProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override;
+    void releaseResources() override {}
 
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
@@ -98,10 +108,10 @@ public:
 
     const juce::String getName() const override;
 
-    bool acceptsMidi() const override;
-    bool producesMidi() const override;
-    bool isMidiEffect() const override;
-    double getTailLengthSeconds() const override;
+    bool acceptsMidi() const override           { return false; }
+    bool producesMidi() const override          { return false; }
+    bool isMidiEffect() const override          { return false; }
+    double getTailLengthSeconds() const override { return 0.0; }
 
     int getNumPrograms() override;
     int getCurrentProgram() override;
@@ -199,7 +209,7 @@ private:
 
     juce::AudioProcessorValueTreeState apvts;
 
-    // パラメーター参照ポインタ (オーディオスレッド用)
+    // パラメーター参照ポインタ (オーディオスレッド用、コンストラクタで必ず非 null になる)
     std::atomic<float>* inputGainParam       = nullptr;
     std::atomic<float>* targetLevelParam     = nullptr;
     std::atomic<float>* rangeParam           = nullptr;
@@ -211,7 +221,6 @@ private:
     std::atomic<float>* detectionModeParam   = nullptr;
     std::atomic<float>* timingModeParam      = nullptr;
     std::atomic<float>* syncSpeedParam       = nullptr;
-    std::atomic<float>* meterModeParam       = nullptr;
     std::atomic<float>* guiEnableParam       = nullptr;
     std::atomic<float>* bypassParam          = nullptr;
 
@@ -226,10 +235,8 @@ private:
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> bypassMix; // 0 = 処理音, 1 = ドライ
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> lookaheadMix; // 0 = 遅延なし, 1 = 22.5ms 先読み
 
-    // Lookahead ディレイバッファ
-    juce::AudioBuffer<float> delayBuffer;
-    int delayBufferSize = 0;
-    int delayBufferWritePos = 0;
+    // Lookahead ディレイ (Input Gain 前の原音を遅らせる)
+    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::None> lookaheadDelay;
     int lookaheadSamples = 0;
 
     // ブレス除去 (HPF 150Hz) および 歯擦音除去 (LPF 4000Hz) 用サイドチェーンフィルター

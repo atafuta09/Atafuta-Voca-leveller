@@ -37,14 +37,6 @@ void WaveformVisualizerComponent::setVisualParams (float targetDb, float rangeDb
     }
 }
 
-void WaveformVisualizerComponent::clear()
-{
-    std::fill (history.begin(), history.end(), VisualDataPoint{});
-    writeIndex = 0;
-    bufferWrapped = false;
-    repaint();
-}
-
 void WaveformVisualizerComponent::setGuiEnabled (bool enabled)
 {
     if (guiEnabled != enabled)
@@ -59,13 +51,6 @@ void WaveformVisualizerComponent::resized()
     const auto bounds = getLocalBounds().toFloat();
     chartTop    = bounds.getY() + 32.0f;
     chartBottom = bounds.getBottom() - 14.0f;
-}
-
-float WaveformVisualizerComponent::getTargetLineY() const
-{
-    // 中央が 0 dB（ターゲット基準レベル）
-    const float height = chartBottom - chartTop;
-    return chartBottom - (0.5f * height);
 }
 
 void WaveformVisualizerComponent::paint (juce::Graphics& g)
@@ -266,8 +251,6 @@ void WaveformVisualizerComponent::paint (juce::Graphics& g)
 }
 
 // ==============================================================================
-// TargetInputMeterComponent 実装 (TARGET LEVEL スライダー右横のInputメーター)
-// ==============================================================================
 // SlimMeterComponent 実装 (IN / OUT ＋ 精密dB目盛り)
 // ==============================================================================
 SlimMeterComponent::SlimMeterComponent()
@@ -291,33 +274,20 @@ void SlimMeterComponent::updateLevels (float inLinear, float outLinear, int mode
     // ピークメーターモード時のピークホールド処理 (約1.5秒ホールド後に減衰)
     if (currentMeterMode == 0)
     {
-        if (curInDb >= inputPeakDb)
+        auto updatePeakHold = [] (float curDb, float& peakDb, int& holdTimer)
         {
-            inputPeakDb = curInDb;
-            inHoldTimer = 90; // 60fps で 90フレーム (約1.5秒)
-        }
-        else if (inHoldTimer > 0)
-        {
-            --inHoldTimer;
-        }
-        else
-        {
-            inputPeakDb = juce::jmax (curInDb, inputPeakDb - 0.7f);
-        }
-
-        if (curOutDb >= outputPeakDb)
-        {
-            outputPeakDb = curOutDb;
-            outHoldTimer = 90;
-        }
-        else if (outHoldTimer > 0)
-        {
-            --outHoldTimer;
-        }
-        else
-        {
-            outputPeakDb = juce::jmax (curOutDb, outputPeakDb - 0.7f);
-        }
+            if (curDb >= peakDb)
+            {
+                peakDb = curDb;
+                holdTimer = 90; // 60fps で 90フレーム (約1.5秒)
+            }
+            else if (holdTimer > 0)
+                --holdTimer;
+            else
+                peakDb = juce::jmax (curDb, peakDb - 0.7f);
+        };
+        updatePeakHold (curInDb,  inputPeakDb,  inHoldTimer);
+        updatePeakHold (curOutDb, outputPeakDb, outHoldTimer);
     }
 
     repaint();
@@ -330,10 +300,6 @@ void SlimMeterComponent::setGuiEnabled (bool enabled)
         guiEnabled = enabled;
         repaint();
     }
-}
-
-void SlimMeterComponent::resized()
-{
 }
 
 void SlimMeterComponent::paint (juce::Graphics& g)
@@ -564,6 +530,15 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     // カスタム LookAndFeel 適用
     setLookAndFeel (&modernDarkLookAndFeel);
 
+    // ラベル共通設定 (文字色は updateThemeColours() で設定する)
+    auto setupLabel = [this] (juce::Label& label, const juce::String& text, float fontSize)
+    {
+        label.setText (text, juce::dontSendNotification);
+        label.setJustificationType (juce::Justification::centred);
+        label.setFont (juce::FontOptions (fontSize, juce::Font::bold));
+        addAndMakeVisible (label);
+    };
+
     // --- 1. SPEED ノブ (BPMモード時3段階切替対応) ---
     speedSlider.setSliderStyle (juce::Slider::RotaryVerticalDrag);
     speedSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -579,17 +554,8 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     };
     addAndMakeVisible (speedSlider);
 
-    speedLabel.setText ("SPEED", juce::dontSendNotification);
-    speedLabel.setJustificationType (juce::Justification::centred);
-    speedLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    speedLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
-    addAndMakeVisible (speedLabel);
-
-    // 視認性を高めた Attack / Release バッジ (横幅を広げ、両方の値を明記)
-    attackReleaseLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    attackReleaseLabel.setJustificationType (juce::Justification::centred);
-    attackReleaseLabel.setColour (juce::Label::textColourId, juce::Colour (0x93, 0xc5, 0xfd));
-    addAndMakeVisible (attackReleaseLabel);
+    setupLabel (speedLabel, "SPEED", 11.0f);
+    setupLabel (attackReleaseLabel, {}, 10.0f); // Attack / Release の両方の値を表示するバッジ
 
     speedAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::speed, speedSlider);
@@ -599,17 +565,8 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     rangeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     addAndMakeVisible (rangeSlider);
 
-    rangeLabel.setText ("RANGE", juce::dontSendNotification);
-    rangeLabel.setJustificationType (juce::Justification::centred);
-    rangeLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    rangeLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
-    addAndMakeVisible (rangeLabel);
-
-    // 視認性を高めた Range 数値表示 (12.0px Bold 発光アイスホワイト)
-    rangeValueLabel.setFont (juce::FontOptions (12.0f, juce::Font::bold));
-    rangeValueLabel.setJustificationType (juce::Justification::centred);
-    rangeValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xf0, 0xf9, 0xff));
-    addAndMakeVisible (rangeValueLabel);
+    setupLabel (rangeLabel, "RANGE", 11.0f);
+    setupLabel (rangeValueLabel, {}, 12.0f);
 
     rangeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::range, rangeSlider);
@@ -620,16 +577,8 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     inputGainSlider.setComponentID ("inGainSlider");
     addAndMakeVisible (inputGainSlider);
 
-    inputGainLabel.setText ("IN GAIN", juce::dontSendNotification);
-    inputGainLabel.setJustificationType (juce::Justification::centred);
-    inputGainLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    inputGainLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-    addAndMakeVisible (inputGainLabel);
-
-    inputGainValueLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    inputGainValueLabel.setJustificationType (juce::Justification::centred);
-    inputGainValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xe2, 0xe8, 0xf0));
-    addAndMakeVisible (inputGainValueLabel);
+    setupLabel (inputGainLabel, "IN GAIN", 10.0f);
+    setupLabel (inputGainValueLabel, {}, 11.0f);
 
     inputGainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::inputGain, inputGainSlider);
@@ -640,16 +589,8 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     outputGainSlider.setComponentID ("outGainSlider");
     addAndMakeVisible (outputGainSlider);
 
-    outputGainLabel.setText ("OUT GAIN", juce::dontSendNotification);
-    outputGainLabel.setJustificationType (juce::Justification::centred);
-    outputGainLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    outputGainLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-    addAndMakeVisible (outputGainLabel);
-
-    outputGainValueLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    outputGainValueLabel.setJustificationType (juce::Justification::centred);
-    outputGainValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xe2, 0xe8, 0xf0));
-    addAndMakeVisible (outputGainValueLabel);
+    setupLabel (outputGainLabel, "OUT GAIN", 10.0f);
+    setupLabel (outputGainValueLabel, {}, 11.0f);
 
     outputGainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::outputGain, outputGainSlider);
@@ -660,16 +601,8 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     targetLevelSlider.setComponentID ("targetSlider");
     addAndMakeVisible (targetLevelSlider);
 
-    targetLevelLabel.setText ("TARGET\nLEVEL", juce::dontSendNotification);
-    targetLevelLabel.setJustificationType (juce::Justification::centred);
-    targetLevelLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    targetLevelLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
-    addAndMakeVisible (targetLevelLabel);
-
-    targetLevelValueLabel.setFont (juce::FontOptions (12.0f, juce::Font::bold));
-    targetLevelValueLabel.setJustificationType (juce::Justification::centred);
-    targetLevelValueLabel.setColour (juce::Label::textColourId, juce::Colours::white);
-    addAndMakeVisible (targetLevelValueLabel);
+    setupLabel (targetLevelLabel, "TARGET\nLEVEL", 10.0f);
+    setupLabel (targetLevelValueLabel, {}, 12.0f);
 
     targetLevelAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::targetLevel, targetLevelSlider);
@@ -680,11 +613,7 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     detectionModeBox.setSelectedId (1);
     addAndMakeVisible (detectionModeBox);
 
-    detectionModeLabel.setText ("DETECTOR", juce::dontSendNotification);
-    detectionModeLabel.setFont (juce::FontOptions (9.0f, juce::Font::bold));
-    detectionModeLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-    detectionModeLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (detectionModeLabel);
+    setupLabel (detectionModeLabel, "DETECTOR", 9.0f);
 
     detectionModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::detectionMode, detectionModeBox);
@@ -698,11 +627,7 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     };
     addAndMakeVisible (timingModeBox);
 
-    timingModeLabel.setText ("TIMING", juce::dontSendNotification);
-    timingModeLabel.setFont (juce::FontOptions (9.0f, juce::Font::bold));
-    timingModeLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-    timingModeLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (timingModeLabel);
+    setupLabel (timingModeLabel, "TIMING", 9.0f);
 
     timingModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::timingMode, timingModeBox);
@@ -798,55 +723,37 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
         alert->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
         alert->enterModalState (true, juce::ModalCallbackFunction::create ([this, alert] (int result)
         {
-            if (result == 1)
-            {
-                const auto name = alert->getTextEditorContents ("presetName");
-                if (name.isNotEmpty())
-                {
-                    if (audioProcessor.saveUserPreset (name))
-                    {
-                        refreshPresetBox();
-                    }
-                }
-            }
+            // 名前の trim と空チェックは saveUserPreset 側で行う
+            if (result == 1 && audioProcessor.saveUserPreset (alert->getTextEditorContents ("presetName")))
+                refreshPresetBox();
         }), true);
     };
     addAndMakeVisible (savePresetBtn);
 
     // ズームコントロール (50% ~ 130%, 10%ステップ)
-    zoomLabel.setText ("100%", juce::dontSendNotification);
-    zoomLabel.setJustificationType (juce::Justification::centred);
-    zoomLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    zoomLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-    addAndMakeVisible (zoomLabel);
+    setupLabel (zoomLabel, "100%", 10.0f);
+
+    auto applyZoom = [this] (float delta)
+    {
+        currentUiScale = juce::jlimit (0.5f, 1.3f, std::round ((currentUiScale + delta) * 10.0f) / 10.0f);
+        setScaleFactor (currentUiScale);
+        zoomLabel.setText (juce::String (juce::roundToInt (currentUiScale * 100.0f)) + "%", juce::dontSendNotification);
+    };
 
     zoomOutBtn.setButtonText ("-");
     zoomOutBtn.setTooltip ("Zoom Out (Min 50%)");
-    zoomOutBtn.onClick = [this]
-    {
-        if (currentUiScale > 0.55f)
-        {
-            currentUiScale = juce::jlimit (0.5f, 1.3f, std::round ((currentUiScale - 0.1f) * 10.0f) / 10.0f);
-            setScaleFactor (currentUiScale);
-            zoomLabel.setText (juce::String (juce::roundToInt (currentUiScale * 100.0f)) + "%", juce::dontSendNotification);
-        }
-    };
+    zoomOutBtn.onClick = [applyZoom] { applyZoom (-0.1f); };
     addAndMakeVisible (zoomOutBtn);
 
     zoomInBtn.setButtonText ("+");
     zoomInBtn.setTooltip ("Zoom In (Max 130%)");
-    zoomInBtn.onClick = [this]
-    {
-        if (currentUiScale < 1.25f)
-        {
-            currentUiScale = juce::jlimit (0.5f, 1.3f, std::round ((currentUiScale + 0.1f) * 10.0f) / 10.0f);
-            setScaleFactor (currentUiScale);
-            zoomLabel.setText (juce::String (juce::roundToInt (currentUiScale * 100.0f)) + "%", juce::dontSendNotification);
-        }
-    };
+    zoomInBtn.onClick = [applyZoom] { applyZoom (0.1f); };
     addAndMakeVisible (zoomInBtn);
 
-    // カラー変更ボタン (Dark / White トグル切り替え)
+    // ラベルの文字色を初期テーマ (ダーク) で設定
+    updateThemeColours();
+
+    // カラー変更ボタン (Dark / White トグル切り替え。初期表示は COLOR)
     colorThemeBtn.setButtonText ("COLOR");
     colorThemeBtn.setTooltip ("Switch between Dark Mode and White Mode");
     colorThemeBtn.onClick = [this]
@@ -881,9 +788,6 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
 
     updateSyncControlState();
     updateTimerState();
-
-    // 初回から即座に滑らかに描画を開始
-    startTimerHz (60);
 }
 
 AutoLevelerAudioProcessorEditor::~AutoLevelerAudioProcessorEditor()
@@ -906,46 +810,26 @@ void AutoLevelerAudioProcessorEditor::updateThemeColours()
     modernDarkLookAndFeel.setWhiteMode (isWhiteMode);
     colorThemeBtn.setButtonText (isWhiteMode ? "WHITE" : "DARK");
 
-    if (isWhiteMode)
-    {
-        // 高コントラスト・ホワイトモード用テキストカラー
-        speedLabel.setColour (juce::Label::textColourId, juce::Colour (0x0f, 0x17, 0x2a));
-        rangeLabel.setColour (juce::Label::textColourId, juce::Colour (0x0f, 0x17, 0x2a));
-        targetLevelLabel.setColour (juce::Label::textColourId, juce::Colour (0x0f, 0x17, 0x2a));
-
-        attackReleaseLabel.setColour (juce::Label::textColourId, juce::Colour (0x02, 0x84, 0xc7));
-        rangeValueLabel.setColour (juce::Label::textColourId, juce::Colour (0x02, 0x84, 0xc7));
-        targetLevelValueLabel.setColour (juce::Label::textColourId, juce::Colour (0x02, 0x84, 0xc7));
-
-        inputGainLabel.setColour (juce::Label::textColourId, juce::Colour (0x47, 0x55, 0x69));
-        outputGainLabel.setColour (juce::Label::textColourId, juce::Colour (0x47, 0x55, 0x69));
-        inputGainValueLabel.setColour (juce::Label::textColourId, juce::Colour (0x0f, 0x17, 0x2a));
-        outputGainValueLabel.setColour (juce::Label::textColourId, juce::Colour (0x0f, 0x17, 0x2a));
-
-        detectionModeLabel.setColour (juce::Label::textColourId, juce::Colour (0x47, 0x55, 0x69));
-        timingModeLabel.setColour (juce::Label::textColourId, juce::Colour (0x47, 0x55, 0x69));
-        zoomLabel.setColour (juce::Label::textColourId, juce::Colour (0x33, 0x41, 0x55));
-    }
-    else
-    {
-        // シック・ダークモード用テキストカラー
-        speedLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
-        rangeLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
-        targetLevelLabel.setColour (juce::Label::textColourId, juce::Colour (0xe0, 0xe7, 0xff));
-
-        attackReleaseLabel.setColour (juce::Label::textColourId, juce::Colour (0x93, 0xc5, 0xfd));
-        rangeValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xf0, 0xf9, 0xff));
-        targetLevelValueLabel.setColour (juce::Label::textColourId, juce::Colours::white);
-
-        inputGainLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-        outputGainLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-        inputGainValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xe2, 0xe8, 0xf0));
-        outputGainValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xe2, 0xe8, 0xf0));
-
-        detectionModeLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-        timingModeLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-        zoomLabel.setColour (juce::Label::textColourId, juce::Colour (0x94, 0xa3, 0xb8));
-    }
+    // { ラベル, ダーク時の色, ホワイト時の色 }
+    const juce::Colour darkHeading (0xe0, 0xe7, 0xff), darkMuted (0x94, 0xa3, 0xb8), darkValue (0xe2, 0xe8, 0xf0);
+    const juce::Colour whiteHeading (0x0f, 0x17, 0x2a), whiteMuted (0x47, 0x55, 0x69), whiteAccent (0x02, 0x84, 0xc7);
+    const std::tuple<juce::Label&, juce::Colour, juce::Colour> labelColours[] = {
+        { speedLabel,            darkHeading,                   whiteHeading },
+        { rangeLabel,            darkHeading,                   whiteHeading },
+        { targetLevelLabel,      darkHeading,                   whiteHeading },
+        { attackReleaseLabel,    juce::Colour (0x93, 0xc5, 0xfd), whiteAccent },
+        { rangeValueLabel,       juce::Colour (0xf0, 0xf9, 0xff), whiteAccent },
+        { targetLevelValueLabel, juce::Colours::white,          whiteAccent },
+        { inputGainLabel,        darkMuted,                     whiteMuted },
+        { outputGainLabel,       darkMuted,                     whiteMuted },
+        { inputGainValueLabel,   darkValue,                     whiteHeading },
+        { outputGainValueLabel,  darkValue,                     whiteHeading },
+        { detectionModeLabel,    darkMuted,                     whiteMuted },
+        { timingModeLabel,       darkMuted,                     whiteMuted },
+        { zoomLabel,             darkMuted,                     juce::Colour (0x33, 0x41, 0x55) },
+    };
+    for (auto& [label, dark, white] : labelColours)
+        label.setColour (juce::Label::textColourId, isWhiteMode ? white : dark);
 
     sendLookAndFeelChange();
     repaint();
@@ -998,9 +882,6 @@ void AutoLevelerAudioProcessorEditor::visibilityChanged()
 
 void AutoLevelerAudioProcessorEditor::timerCallback()
 {
-    if (!guiEnableButton.getToggleState())
-        return;
-
     // 1. ProcessorのFIFOから波形データを取得
     constexpr int maxReadPoints = 64;
     VisualDataPoint points[maxReadPoints];
@@ -1073,72 +954,44 @@ void AutoLevelerAudioProcessorEditor::timerCallback()
 
 void AutoLevelerAudioProcessorEditor::paint (juce::Graphics& g)
 {
+    // シャーシ背景 (ホワイト: スタジオシルバー / ダーク: 梨地ブラック)
+    g.fillAll (isWhiteMode ? juce::Colour (0xf1, 0xf5, 0xf9) : juce::Colour (0x0a, 0x0b, 0x0f));
+
+    // トップブランドヘッダーバー (42px)
+    g.setColour (isWhiteMode ? juce::Colours::white : juce::Colour (0x0e, 0x10, 0x17));
+    g.fillRect (getLocalBounds().removeFromTop (42));
+
+    g.setColour (isWhiteMode ? juce::Colour (0xcb, 0xd5, 0xe1) : juce::Colour (0x1a, 0x1e, 0x2a));
+    g.drawHorizontalLine (42, 0.0f, static_cast<float>(getWidth()));
+
+    // プラグイン名ロゴ (Atafuta09Leveler)
+    const juce::String title ("Atafuta09Leveler");
+    const auto titleRect = juce::Rectangle<float> (18.0f, 0.0f, 155.0f, 42.0f);
+    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+
     if (isWhiteMode)
     {
-        // 高品位スタジオシルバー＆ホワイトシャーシ
-        g.fillAll (juce::Colour (0xf1, 0xf5, 0xf9));
-
-        // トップブランドヘッダーバー (42px)
-        const auto headerBounds = getLocalBounds().removeFromTop (42);
-        g.setColour (juce::Colour (0xff, 0xff, 0xff));
-        g.fillRect (headerBounds);
-
-        g.setColour (juce::Colour (0xcb, 0xd5, 0xe1));
-        g.drawHorizontalLine (42, 0.0f, static_cast<float>(getWidth()));
-
-        // プラグイン名ロゴ (Atafuta09Leveler)
-        const auto titleRect = juce::Rectangle<float> (18.0f, 0.0f, 155.0f, 42.0f);
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-
         // ディープスレートシャドウ
         g.setColour (juce::Colour (0x02, 0x84, 0xc7).withAlpha (0.22f));
-        g.drawText ("Atafuta09Leveler", titleRect.translated (1.0f, 1.0f), juce::Justification::centredLeft);
-
-        g.setColour (juce::Colour (0x0f, 0x17, 0x2a));
-        g.drawText ("Atafuta09Leveler", titleRect, juce::Justification::centredLeft);
-
-        // バージョン表記 (Ver 1.04)
-        g.setColour (juce::Colour (0x64, 0x74, 0x8b));
-        g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-        g.drawText ("Ver 1.04", 175, 0, 60, 42, juce::Justification::centredLeft);
+        g.drawText (title, titleRect.translated (1.0f, 1.0f), juce::Justification::centredLeft);
     }
     else
     {
-        // 実機梨地ダークシャーシ背景
-        g.fillAll (juce::Colour (0x0a, 0x0b, 0x0f));
-
-        // トップブランドヘッダーバー (42px)
-        const auto headerBounds = getLocalBounds().removeFromTop (42);
-        g.setColour (juce::Colour (0x0e, 0x10, 0x17));
-        g.fillRect (headerBounds);
-
-        g.setColour (juce::Colour (0x1a, 0x1e, 0x2a));
-        g.drawHorizontalLine (42, 0.0f, static_cast<float>(getWidth()));
-
-        // プラグイン名ロゴ (Atafuta09Leveler)
-        const auto titleRect = juce::Rectangle<float> (18.0f, 0.0f, 155.0f, 42.0f);
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-
-        // 控えめなソフトアイスブルーの微細グロー (1px オフセット, alpha 0.35)
+        // 控えめなソフトアイスブルーの微細グロー (周囲 1px オフセット, alpha 0.35)
         g.setColour (juce::Colour (0x93, 0xc5, 0xfd).withAlpha (0.35f));
         for (int dx = -1; dx <= 1; ++dx)
-        {
             for (int dy = -1; dy <= 1; ++dy)
-            {
                 if (dx != 0 || dy != 0)
-                    g.drawText ("Atafuta09Leveler", titleRect.translated (static_cast<float>(dx), static_cast<float>(dy)), juce::Justification::centredLeft);
-            }
-        }
-
-        // 上品な白熱コア (純白よりほんの少し優しいソフトホワイト)
-        g.setColour (juce::Colour (0xf8, 0xfa, 0xfc));
-        g.drawText ("Atafuta09Leveler", titleRect, juce::Justification::centredLeft);
-
-        // バージョン表記 (Ver 1.04)
-        g.setColour (juce::Colour (0x64, 0x74, 0x8b));
-        g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-        g.drawText ("Ver 1.04", 175, 0, 60, 42, juce::Justification::centredLeft);
+                    g.drawText (title, titleRect.translated (static_cast<float>(dx), static_cast<float>(dy)), juce::Justification::centredLeft);
     }
+
+    g.setColour (isWhiteMode ? juce::Colour (0x0f, 0x17, 0x2a) : juce::Colour (0xf8, 0xfa, 0xfc));
+    g.drawText (title, titleRect, juce::Justification::centredLeft);
+
+    // バージョン表記 (CMakeLists.txt の project(VERSION) と連動)
+    g.setColour (juce::Colour (0x64, 0x74, 0x8b));
+    g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+    g.drawText (juce::String ("Ver ") + JucePlugin_VersionString, 175, 0, 60, 42, juce::Justification::centredLeft);
 }
 
 void AutoLevelerAudioProcessorEditor::resized()
@@ -1153,7 +1006,7 @@ void AutoLevelerAudioProcessorEditor::resized()
     sibilanceFilterButton.setBounds (headerArea.removeFromRight (98).reduced (4, 9));
     breathFilterButton.setBounds    (headerArea.removeFromRight (90).reduced (4, 9));
 
-    // 左側: ロゴ(0~170px) + Ver 1.04(175~235px) の直後
+    // 左側: ロゴ(0~170px) + バージョン表記(175~235px) の直後
     auto leftHeader = headerArea.removeFromLeft (375);
     leftHeader.removeFromLeft (240); // ロゴ & バージョン領域スキップ
 
@@ -1260,10 +1113,4 @@ void AutoLevelerAudioProcessorEditor::resized()
     // --- C. 中央 WAVEFORM DISPLAY (残り幅) ---
     mainBody.removeFromRight (10); // ギャップ
     waveformComponent.setBounds (mainBody);
-
-    syncTargetSliderLayout();
-}
-
-void AutoLevelerAudioProcessorEditor::syncTargetSliderLayout()
-{
 }
