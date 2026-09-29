@@ -3,10 +3,10 @@
 ![Atafuta09Leveler](https://img.shields.io/badge/version-1.04-blue.svg)
 ![VST3](https://img.shields.io/badge/format-VST3-orange.svg)
 ![AU](https://img.shields.io/badge/format-AU%20(macOS)-orange.svg)
-![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
 ![JUCE8](https://img.shields.io/badge/JUCE-8.0.4-green.svg)
 
-**Atafuta09Leveler** は、JUCE 8 / C++20 で開発されたプロ仕様のボーカル特化型オートレベラー（Vocal Dynamics Rider）プラグインです（Windows: VST3 / macOS: VST3・Audio Unit）。  
+**Atafuta09Leveler** は、JUCE 8 / C++17 で開発されたプロ仕様のボーカル特化型オートレベラー（Vocal Dynamics Rider）プラグインです（Windows: VST3 / macOS: VST3・Audio Unit）。  
 コンプレッサーの潰れた質感を与えることなく、ボーカルの手動ボリュームオートメーション（手書きフェーダー操作）を完全に自動化し、オケに埋もれない自然で安定したボーカルトラックを瞬時に作成します。
 
 ---
@@ -40,7 +40,7 @@
 
 ## 開発環境・ビルド仕様
 
-- **言語**: C++20 / C++17
+- **言語**: C++17
 - **フレームワーク**: JUCE 8 (8.0.4)
 - **ビルドツール**: CMake 3.22+
   - Windows: Visual Studio 2022/2026 (MSVC) + Ninja
@@ -61,7 +61,7 @@ build_plugin.bat
 **macOS**
 
 ```sh
-./build_plugin_mac.sh            # build_mac/AutoLeveler_artefacts/Release/ に VST3 と AU を生成
+./build_plugin_mac.sh            # build_mac/AutoLeveler_artefacts/Release/ に VST3 と AU を生成（ninja がある場合は build_mac_ninja/）
 ./build_plugin_mac.sh --install  # ビルド後に ~/Library/Audio/Plug-Ins/{VST3,Components} へコピー
 ```
 

@@ -24,3 +24,4 @@ Atafuta-Vocal-Leveler/
 
 # macOS build directory
 build_mac/
+build_mac_ninja/

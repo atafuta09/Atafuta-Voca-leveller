@@ -56,7 +56,7 @@ juce_add_plugin(AutoLeveler
     PLUGIN_MANUFACTURER_CODE Ataf
     PLUGIN_CODE AtLv
     FORMATS ${ATAFUTA_PLUGIN_FORMATS}
-    BUNDLE_ID "com.atafutaaudio.atafuta09leveler"
+    BUNDLE_ID "com.atafuta09.atafuta09leveler"
     AU_MAIN_TYPE kAudioUnitType_Effect
     VST3_CATEGORIES Fx Dynamics
     PRODUCT_NAME "Atafuta09Leveler"
