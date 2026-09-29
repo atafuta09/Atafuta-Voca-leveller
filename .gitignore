@@ -25,3 +25,16 @@ Atafuta-Vocal-Leveler/
 # macOS build directory
 build_mac/
 build_mac_ninja/
+
+# ローカルに置いた JUCE（無ければ CMake の FetchContent で取得する）
+/JUCE/
+
+# 配布用インストーラー（build_installer_mac.sh の出力）
+*.pkg
+
+# エディタ / IDE（VS Code・CLion・clangd）
+.vscode/
+.idea/
+cmake-build-*/
+compile_commands.json
+.cache/
