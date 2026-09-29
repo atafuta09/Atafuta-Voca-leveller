@@ -9,6 +9,7 @@
 - **macOS 対応（VST3 / Audio Unit）**:
   - macOS では VST3 に加えて Audio Unit（AUv2、`aufx AtLv Ataf`）をビルド。Apple Silicon / Intel のユニバーサルバイナリ、macOS 12 以降に対応。
   - macOS 用ビルドスクリプト `build_plugin_mac.sh`（`--install` で `~/Library/Audio/Plug-Ins/` へコピー）を追加。
+  - 配布用インストーラー作成スクリプト `build_installer_mac.sh` を追加。1 つの `.pkg` で VST3 と AU を `/Library/Audio/Plug-Ins/` へインストール（未署名）。
   - VST3 カテゴリを `Fx|Dynamics` に設定。
   - ベンダー名を Atafuta09 に統一（バンドル ID は `com.atafuta09.atafuta09leveler`）。
   - macOS でのユーザープリセット保存先は `~/Library/Atafuta09/Atafuta09Leveler/user_presets.xml`。

@@ -63,12 +63,13 @@ build_plugin.bat
 ```sh
 ./build_plugin_mac.sh            # build_mac/AutoLeveler_artefacts/Release/ に VST3 と AU を生成（ninja がある場合は build_mac_ninja/）
 ./build_plugin_mac.sh --install  # ビルド後に ~/Library/Audio/Plug-Ins/{VST3,Components} へコピー
+./build_installer_mac.sh         # ビルド後、VST3 と AU を /Library/Audio/Plug-Ins/ へ入れる配布用 .pkg を build_mac/installer/ に作成
 ```
 
 - 手動で配置する場合は、`Atafuta09Leveler.vst3` を `~/Library/Audio/Plug-Ins/VST3/`、`Atafuta09Leveler.component` を `~/Library/Audio/Plug-Ins/Components/` にコピーします。
 - AU が DAW に表示されない場合は、`killall -9 AudioComponentRegistrar` を実行してから DAW を再起動してください。
 - AU の動作検証: `auval -v aufx AtLv Ataf`
-- ローカルビルドは ad-hoc 署名です。他の Mac へ配布する場合は Developer ID 署名と公証（notarization）が必要です。
+- ローカルビルドとインストーラーは Developer ID 署名・公証（notarization）をしていません。配布先の Mac では、`.pkg` をダブルクリックするとブロックされるため、Finder で右クリック →「開く」、または「システム設定 → プライバシーとセキュリティ」の「このまま開く」で許可してください。
 
 ---
 
