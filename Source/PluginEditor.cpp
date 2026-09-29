@@ -728,7 +728,7 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
         audioProcessor.getAPVTS(), ParameterIDs::syncSpeed, syncSpeedBox);
 
     // --- 7. 下部トグル (LOOKAHEAD / GUI RENDER) ---
-    lookaheadButton.setButtonText ("LOOKAHEAD (5ms)");
+    lookaheadButton.setButtonText ("LOOKAHEAD (22.5ms)");
     addAndMakeVisible (lookaheadButton);
 
     lookaheadAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (

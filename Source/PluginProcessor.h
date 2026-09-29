@@ -192,7 +192,7 @@ public:
         return info;
     }
 
-    static constexpr float lookaheadMs = 5.0f; // 5ms Lookahead
+    static constexpr float lookaheadMs = 22.5f; // 22.5ms Lookahead (48kHz で 1080 サンプル)
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -223,6 +223,8 @@ private:
     // スムージング用
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedInputGainDb;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedOutputGainDb;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> bypassMix; // 0 = 処理音, 1 = ドライ
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> lookaheadMix; // 0 = 遅延なし, 1 = 22.5ms 先読み
 
     // Lookahead ディレイバッファ
     juce::AudioBuffer<float> delayBuffer;

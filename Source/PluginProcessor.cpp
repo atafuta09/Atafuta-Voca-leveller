@@ -246,7 +246,7 @@ void AutoLevelerAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 {
     currentSampleRate = (sampleRate > 0.0) ? sampleRate : 44100.0;
 
-    // 1. Lookaheadディレイ（5ms）のサンプル数計算
+    // 1. Lookaheadディレイ（22.5ms）のサンプル数計算
     lookaheadSamples = juce::jmax (1, juce::roundToInt (currentSampleRate * (lookaheadMs * 0.001f)));
     const bool isLookaheadOn = (lookaheadEnableParam != nullptr && lookaheadEnableParam->load() > 0.5f);
     setLatencySamples (isLookaheadOn ? lookaheadSamples : 0);
@@ -264,6 +264,12 @@ void AutoLevelerAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 
     smoothedOutputGainDb.reset (currentSampleRate, 0.02);
     smoothedOutputGainDb.setCurrentAndTargetValue (outputGainParam != nullptr ? outputGainParam->load() : 0.0f);
+
+    lookaheadMix.reset (currentSampleRate, 0.02);
+    lookaheadMix.setCurrentAndTargetValue (isLookaheadOn ? 1.0f : 0.0f);
+
+    bypassMix.reset (currentSampleRate, 0.02);
+    bypassMix.setCurrentAndTargetValue ((bypassParam != nullptr && bypassParam->load() > 0.5f) ? 1.0f : 0.0f);
 
     // 3. 歯擦音・ブレス用サイドチェーンバンドパスフィルターの初期化
     sidechainHPF.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass (currentSampleRate, 150.0f);
@@ -338,13 +344,15 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     const bool isGuiEnabled       = guiEnableParam       != nullptr && (guiEnableParam->load (std::memory_order_relaxed)       > 0.5f);
     const bool isBypassed         = bypassParam          != nullptr && (bypassParam->load (std::memory_order_relaxed)          > 0.5f);
 
-    // Lookahead切り替えに伴うDAWレイテンシー報告
-    const int targetLatency = (isLookaheadOn && !isBypassed) ? lookaheadSamples : 0;
+    // Lookahead切り替えに伴うDAWレイテンシー報告（バイパス時もドライを同じだけ遅らせるので固定）
+    const int targetLatency = isLookaheadOn ? lookaheadSamples : 0;
     if (getLatencySamples() != targetLatency)
         setLatencySamples (targetLatency);
 
     smoothedInputGainDb.setTargetValue (inGainDb);
     smoothedOutputGainDb.setTargetValue (outGainDb);
+    bypassMix.setTargetValue (isBypassed ? 1.0f : 0.0f);
+    lookaheadMix.setTargetValue (isLookaheadOn ? 1.0f : 0.0f);
 
     // -------------------------------------------------------------
     // 3. アタック / リリースの計算 (Free vs BPM Sync 3段階: Fast, Mid, Slow)
@@ -379,19 +387,21 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         const float gainedSampleL = inL[n] * curInGainLinear;
         const float gainedSampleR = inR[n] * curInGainLinear;
 
-        // B. Lookaheadディレイバッファへの書き込み
-        delayBuffer.setSample (0, delayBufferWritePos, gainedSampleL);
+        // B. Lookaheadディレイバッファへの書き込み（バイパス用ドライと共用するため Input Gain 前の原音）
+        delayBuffer.setSample (0, delayBufferWritePos, inL[n]);
         if (totalNumInputChannels > 1)
-            delayBuffer.setSample (1, delayBufferWritePos, gainedSampleR);
+            delayBuffer.setSample (1, delayBufferWritePos, inR[n]);
 
-        // C. 遅延サンプルの読み出し (Lookahead ON時は5ms前、OFF時は現在サンプル)
-        const int effectiveDelay = isLookaheadOn ? lookaheadSamples : 0;
-        int readPos = delayBufferWritePos - effectiveDelay;
+        // C. 遅延サンプルの読み出し (22.5ms前と現在サンプルを 20ms クロスフェードし、Lookahead 切替時のクリックを防ぐ)
+        int readPos = delayBufferWritePos - lookaheadSamples;
         if (readPos < 0)
             readPos += delayBufferSize;
 
-        const float delayedSampleL = delayBuffer.getSample (0, readPos);
-        const float delayedSampleR = (totalNumInputChannels > 1) ? delayBuffer.getSample (1, readPos) : delayedSampleL;
+        const float laMix = lookaheadMix.getNextValue();
+        const float lookedL = delayBuffer.getSample (0, readPos);
+        const float lookedR = (totalNumInputChannels > 1) ? delayBuffer.getSample (1, readPos) : lookedL;
+        const float delayedSampleL = inL[n] + laMix * (lookedL - inL[n]);
+        const float delayedSampleR = inR[n] + laMix * (lookedR - inR[n]);
 
         if (++delayBufferWritePos >= delayBufferSize)
             delayBufferWritePos = 0;
@@ -453,10 +463,12 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         // I. 総合ゲイン乗算と Output Gain の適用
         const float curOutGainLinear = juce::Decibels::decibelsToGain (smoothedOutputGainDb.getNextValue());
         const float levelingGainLinear = juce::Decibels::decibelsToGain (currentSmoothedGainDb);
-        const float totalGain = levelingGainLinear * curOutGainLinear;
+        const float totalGain = curInGainLinear * levelingGainLinear * curOutGainLinear;
 
-        const float finalOutL = isBypassed ? inL[n] : (delayedSampleL * totalGain);
-        const float finalOutR = isBypassed ? inR[n] : (delayedSampleR * totalGain);
+        // バイパスはレイテンシー補償済みのドライへ 20ms クロスフェード（切替時のクリック防止）
+        const float dryMix = bypassMix.getNextValue();
+        const float finalOutL = delayedSampleL * (totalGain + dryMix * (1.0f - totalGain));
+        const float finalOutR = delayedSampleR * (totalGain + dryMix * (1.0f - totalGain));
 
         outL[n] = juce::jlimit (-4.0f, 4.0f, finalOutL);
         if (totalNumOutputChannels > 1)
