@@ -1,7 +1,5 @@
 # Agent Instructions
 
-**このファイルには、このプロジェクトに固有の事項だけを書いてください。**普遍ルール（全プロジェクト共通の判断原則）はグローバル指示にあります。ここへ重複させないでください。
-
 ## このプロジェクトについて
 
 - ボーカル特化のオートレベラー（Vocal Dynamics Rider）VST3 プラグイン `Atafuta09Leveler`。JUCE 8.0.4 / C++（CMake は `CMAKE_CXX_STANDARD 17`）。ユーザー向けの機能説明は `README.md` / `MANUAL.md`、変更履歴は `CHANGELOG.md`、残タスクは `TODO.md`。
@@ -19,7 +17,6 @@
 
 - 既定では、調査から実装・検証までメインセッションが自分で行います。
 - MUST: 他モデル（Codex、Cursor の Composer / Grok、Claude など）への委譲は、ユーザーが明示的に指示した場合だけ行ってください（手順は委譲先ごとの `delegate-codex` / `delegate-cursor` / `delegate-claude` Skill）。NEVER: 作業の種類を理由に、指示なしで自動委譲しないでください。
-- NEVER: Blender の操作（`bpy` スクリプト、アドオン、MCP 経由のシーン操作など）は、委譲を指示された場合でも他モデルへ委譲しないでください。メインセッションが直接実行してください。
 
 ## 決定的ガードレールと参照先
 
