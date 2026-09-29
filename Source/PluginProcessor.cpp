@@ -30,7 +30,7 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     // 8つの実践的ファクトリープリセット
     // 値の順: InGain, Target, Range, Speed, OutGain, Lookahead, Breath, Sibilance, Det(0:RMS/1:Peak), Timing(0:Free/1:Sync), SyncSpeed(0:Fast/1:Mid/2:Slow)
     presets = {
-        { "Default",             { 0.0f, -12.0f,  6.0f, 50.0f, 0.0f, 1, 0, 0, 0, 0, 1 } }, // 標準
+        { "Default",             { 0.0f, -24.0f,  7.0f, 93.6f, 0.0f, 1, 1, 1, 0, 0, 1 } }, // 標準 (パラメーター初期値と同じ)
         { "Synth Vocal",         { 0.0f, -14.0f,  6.0f, 75.0f, 0.0f, 1, 1, 1, 0, 0, 1 } }, // 合成音声・打ち込みボーカル特化
         { "Gentle Vocal Ride",   { 0.0f, -14.0f,  4.0f, 35.0f, 0.0f, 1, 1, 0, 0, 0, 1 } }, // 自然な音量均一化
         { "Aggressive Leveler",  { 0.0f, -10.0f, 10.0f, 75.0f, 0.0f, 1, 1, 1, 0, 0, 1 } }, // ロック・激しいボーカル向け
@@ -492,14 +492,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout AutoLevelerAudioProcessor::c
 
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     layout.add (std::make_unique<Float>  (id (ParameterIDs::inputGain),       "Input Gain",       juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),  0.0f, dB),
-                std::make_unique<Float>  (id (ParameterIDs::targetLevel),     "Target Level",     juce::NormalisableRange<float> (-36.0f,  0.0f, 0.1f), -12.0f, dB),
-                std::make_unique<Float>  (id (ParameterIDs::range),           "Range",            juce::NormalisableRange<float> (  0.0f, 13.0f, 0.1f),  6.0f, dB),
-                std::make_unique<Float>  (id (ParameterIDs::speed),           "Speed",            juce::NormalisableRange<float> (  0.0f, 100.0f, 0.1f), 50.0f,
+                std::make_unique<Float>  (id (ParameterIDs::targetLevel),     "Target Level",     juce::NormalisableRange<float> (-36.0f,  0.0f, 0.1f), -24.0f, dB),
+                std::make_unique<Float>  (id (ParameterIDs::range),           "Range",            juce::NormalisableRange<float> (  0.0f, 13.0f, 0.1f),  7.0f, dB),
+                std::make_unique<Float>  (id (ParameterIDs::speed),           "Speed",            juce::NormalisableRange<float> (  0.0f, 100.0f, 0.1f), 93.6f,
                                           juce::AudioParameterFloatAttributes().withLabel ("%")),
                 std::make_unique<Float>  (id (ParameterIDs::outputGain),      "Output Gain",      juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),  0.0f, dB),
                 std::make_unique<Bool>   (id (ParameterIDs::lookaheadEnable), "Lookahead",        true),
-                std::make_unique<Bool>   (id (ParameterIDs::breathFilter),    "Breath Filter",    false),
-                std::make_unique<Bool>   (id (ParameterIDs::sibilanceFilter), "Sibilance Filter", false),
+                std::make_unique<Bool>   (id (ParameterIDs::breathFilter),    "Breath Filter",    true),
+                std::make_unique<Bool>   (id (ParameterIDs::sibilanceFilter), "Sibilance Filter", true),
                 std::make_unique<Choice> (id (ParameterIDs::detectionMode),   "Detection Mode",   juce::StringArray { "RMS", "Peak" }, 0),
                 std::make_unique<Choice> (id (ParameterIDs::timingMode),      "Timing Mode",      juce::StringArray { "Free (ms)", "Sync (BPM)" }, 0),
                 std::make_unique<Choice> (id (ParameterIDs::syncSpeed),       "Sync Speed",       juce::StringArray { "Fast", "Mid", "Slow" }, 1),

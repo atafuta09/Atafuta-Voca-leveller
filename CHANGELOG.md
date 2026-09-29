@@ -15,6 +15,7 @@
   - macOS でのユーザープリセット保存先は `~/Library/Atafuta09/Atafuta09Leveler/user_presets.xml`。
 
 ### 仕様変更
+- **初期設定を変更**: 読み込み時の初期値と Default プリセットを TARGET -24.0 dB、RANGE 7.0 dB、SPEED 93.6%（Att 10 ms / Rel 54 ms）、BREATH / SIBILANCE ON にしました。
 - **Lookahead を 5ms から 22.5ms（48kHz で 1080 サンプル）に延長**: 他のサンプルレートでも時間を揃えています。Lookahead ON 時にDAWへ報告するレイテンシーも同じだけ増えます。
 
 ### 不具合修正
