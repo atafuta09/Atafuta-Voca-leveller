@@ -52,7 +52,7 @@ else()
 endif()
 
 juce_add_plugin(AutoLeveler
-    COMPANY_NAME "AtafutaAudio"
+    COMPANY_NAME "Atafuta09"
     PLUGIN_MANUFACTURER_CODE Ataf
     PLUGIN_CODE AtLv
     FORMATS ${ATAFUTA_PLUGIN_FORMATS}
