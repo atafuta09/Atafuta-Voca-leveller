@@ -13,7 +13,7 @@
 
 ## 主な特徴
 
-- **Auto Dynamics Riding**: ターゲットレベルと許容補正幅（Range: 0〜15dB）に基づき、ボーカルの抑揚を滑らかに自動制御。
+- **Auto Dynamics Riding**: ターゲットレベルと許容補正幅（Range: 0〜13dB）に基づき、ボーカルの抑揚を滑らかに自動制御。
 - **Modern Dark & White Mode**:
   - 実機ラック機材の質感を持つ **Dark Mode**
   - 高品位スタジオコンソールを模した高コントラストな **White Mode**（`COLOR` ボタンで瞬時切替）

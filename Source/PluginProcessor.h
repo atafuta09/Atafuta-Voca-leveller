@@ -53,6 +53,15 @@ struct TimingInfo
 };
 
 /**
+ * アタック・リリースの時定数のみ (オーディオスレッド用、メモリ確保なし)
+ */
+struct TimingMs
+{
+    float attackMs;
+    float releaseMs;
+};
+
+/**
  * ファクトリープリセット情報
  */
 struct Preset
@@ -129,54 +138,57 @@ public:
     void loadUserPresets();
     void saveUserPresetsToFile();
 
-    // Speed値、Timingモード (Free / BPM Sync)、SyncSpeed (Fast:0, Mid:1, Slow:2) からAttack/Release時定数を計算
-    static inline TimingInfo calculateTiming (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm) noexcept
+    // Speed値、Timingモード (Free / BPM Sync)、SyncSpeed (Fast:0, Mid:1, Slow:2) からAttack/Release時定数 (ms) を計算
+    // オーディオスレッドから呼ぶため、文字列などのメモリ確保をしない
+    static inline TimingMs calculateTimingMs (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm) noexcept
     {
-        TimingInfo info;
-        const float bpm = (hostBpm >= 20.0f && hostBpm <= 400.0f) ? hostBpm : 120.0f;
-        const float quarterNoteMs = (60.0f / bpm) * 1000.0f;
-
         if (!isSyncMode)
         {
             // Free モード (ミリ秒)
             const float speedNorm = juce::jlimit (0.0f, 1.0f, speedVal * 0.01f);
-            info.attackMs  = 150.0f * std::pow (8.0f / 150.0f, speedNorm);
-            info.releaseMs = 800.0f * std::pow (45.0f / 800.0f, speedNorm);
-            info.attackLabel  = juce::String (juce::roundToInt (info.attackMs)) + " ms";
-            info.releaseLabel = juce::String (juce::roundToInt (info.releaseMs)) + " ms";
-            info.modeName     = "Free";
+            return { 150.0f * std::pow (8.0f / 150.0f, speedNorm),
+                     800.0f * std::pow (45.0f / 800.0f, speedNorm) };
         }
-        else
+
+        const float bpm = (hostBpm >= 20.0f && hostBpm <= 400.0f) ? hostBpm : 120.0f;
+        const float quarterNoteMs = (60.0f / bpm) * 1000.0f;
+
+        switch (syncSpeedIndex)
         {
-            // BPM Sync モード: Fast(0), Mid(1), Slow(2) の三段階
-            switch (syncSpeedIndex)
-            {
-                case 0: // Fast: Attack 1/64 (quarter/16), Release 1/16 (quarter/4)
-                    info.attackMs  = quarterNoteMs * (1.0f / 16.0f);
-                    info.releaseMs = quarterNoteMs * (1.0f / 4.0f);
-                    info.attackLabel  = "1/64 (" + juce::String (juce::roundToInt (info.attackMs)) + "ms)";
-                    info.releaseLabel = "1/16 (" + juce::String (juce::roundToInt (info.releaseMs)) + "ms)";
-                    info.modeName     = "Fast";
-                    break;
-
-                case 2: // Slow: Attack 1/16 (quarter/4), Release 1/4 (quarter*1)
-                    info.attackMs  = quarterNoteMs * (1.0f / 4.0f);
-                    info.releaseMs = quarterNoteMs * 1.0f;
-                    info.attackLabel  = "1/16 (" + juce::String (juce::roundToInt (info.attackMs)) + "ms)";
-                    info.releaseLabel = "1/4 (" + juce::String (juce::roundToInt (info.releaseMs)) + "ms)";
-                    info.modeName     = "Slow";
-                    break;
-
-                case 1: // Mid (デフォルト): Attack 1/32 (quarter/8), Release 1/8 (quarter/2)
-                default:
-                    info.attackMs  = quarterNoteMs * (1.0f / 8.0f);
-                    info.releaseMs = quarterNoteMs * 0.5f;
-                    info.attackLabel  = "1/32 (" + juce::String (juce::roundToInt (info.attackMs)) + "ms)";
-                    info.releaseLabel = "1/8 (" + juce::String (juce::roundToInt (info.releaseMs)) + "ms)";
-                    info.modeName     = "Mid";
-                    break;
-            }
+            case 0:  return { quarterNoteMs / 16.0f, quarterNoteMs / 4.0f }; // Fast: 1/64, 1/16
+            case 2:  return { quarterNoteMs / 4.0f,  quarterNoteMs };        // Slow: 1/16, 1/4
+            default: return { quarterNoteMs / 8.0f,  quarterNoteMs / 2.0f }; // Mid:  1/32, 1/8
         }
+    }
+
+    // UI 表示用: 時定数に加えてラベル文字列を組み立てる (メッセージスレッド専用)
+    static inline TimingInfo calculateTiming (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm)
+    {
+        const auto ms = calculateTimingMs (speedVal, isSyncMode, syncSpeedIndex, hostBpm);
+        TimingInfo info;
+        info.attackMs  = ms.attackMs;
+        info.releaseMs = ms.releaseMs;
+
+        const juce::String attackMsText  = juce::String (juce::roundToInt (ms.attackMs));
+        const juce::String releaseMsText = juce::String (juce::roundToInt (ms.releaseMs));
+
+        if (!isSyncMode)
+        {
+            info.attackLabel  = attackMsText + " ms";
+            info.releaseLabel = releaseMsText + " ms";
+            info.modeName     = "Free";
+            return info;
+        }
+
+        // Fast(0), Mid(1), Slow(2)。範囲外は calculateTimingMs と同じく Mid 扱い
+        const int idx = (syncSpeedIndex == 0 || syncSpeedIndex == 2) ? syncSpeedIndex : 1;
+        const char* modeNames[]    = { "Fast", "Mid", "Slow" };
+        const char* attackNotes[]  = { "1/64", "1/32", "1/16" };
+        const char* releaseNotes[] = { "1/16", "1/8",  "1/4"  };
+
+        info.attackLabel  = juce::String (attackNotes[idx])  + " (" + attackMsText  + "ms)";
+        info.releaseLabel = juce::String (releaseNotes[idx]) + " (" + releaseMsText + "ms)";
+        info.modeName     = modeNames[idx];
         return info;
     }
 
@@ -203,7 +215,8 @@ private:
     std::atomic<float>* guiEnableParam       = nullptr;
     std::atomic<float>* bypassParam          = nullptr;
 
-    // プリセット管理
+    // プリセット管理 (先頭 numFactoryPresets 件がファクトリープリセット、以降がユーザープリセット)
+    static constexpr size_t numFactoryPresets = 8;
     std::vector<Preset> presets;
     int currentProgram = 0;
 

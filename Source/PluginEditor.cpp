@@ -2,7 +2,7 @@
 #include "PluginEditor.h"
 
 // ==============================================================================
-// WaveformVisualizerComponent 実装 (中央 0 dB ＆ ±15 dB スケール)
+// WaveformVisualizerComponent 実装 (-42 〜 0 dBFS スケール)
 // ==============================================================================
 WaveformVisualizerComponent::WaveformVisualizerComponent()
     : history (static_cast<size_t>(maxHistoryPoints))
@@ -258,7 +258,7 @@ void WaveformVisualizerComponent::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0x94, 0xa3, 0xb8));
     g.drawText ("GR Ride", juce::roundToInt (bounds.getX() + 202.0f), juce::roundToInt (hudY), 55, 13, juce::Justification::centredLeft);
 
-    // Target & Range (±15dB 表示)
+    // Target & Range (±Range dB 表示)
     g.setColour (juce::Colour (0x93, 0xc5, 0xfd));
     g.drawRect (bounds.getX() + 268.0f, hudY + 3.0f, 8.0f, 6.0f, 1.0f);
     const juce::String rangeStr = "Target " + juce::String (static_cast<int>(currentTargetDb)) + "dB (±" + juce::String (currentRangeDb, 1) + "dB)";
@@ -572,9 +572,9 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
         const bool isSync = (timingModeBox.getSelectedId() == 2);
         if (isSync)
         {
-            // BPM モード時: 0: Slow, 1: Mid, 2: Fast を syncSpeedBox に伝達
-            const int stepVal = juce::roundToInt (speedSlider.getValue());
-            syncSpeedBox.setSelectedId (stepVal + 1, juce::sendNotificationSync);
+            // BPM モード時: ノブ位置 (0: Slow, 1: Mid, 2: Fast) を syncSpeedBox の項目 (0: Fast, 1: Mid, 2: Slow) に伝達
+            const int knobStep = juce::jlimit (0, 2, juce::roundToInt (speedSlider.getValue()));
+            syncSpeedBox.setSelectedItemIndex (2 - knobStep, juce::sendNotificationSync);
         }
     };
     addAndMakeVisible (speedSlider);
@@ -594,10 +594,9 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     speedAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::speed, speedSlider);
 
-    // --- 2. RANGE ノブ (±15 dB 範囲に変更) ---
+    // --- 2. RANGE ノブ (0 〜 13 dB、範囲はパラメーター定義からアタッチメントが設定する) ---
     rangeSlider.setSliderStyle (juce::Slider::RotaryVerticalDrag);
     rangeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    rangeSlider.setRange (0.0, 15.0, 0.5); // ±15 dB
     addAndMakeVisible (rangeSlider);
 
     rangeLabel.setText ("RANGE", juce::dontSendNotification);
@@ -708,16 +707,17 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     timingModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::timingMode, timingModeBox);
 
-    syncSpeedBox.addItem ("Slow", 1);
+    // ComboBoxAttachment は項目の並び順でパラメーターと対応するため、パラメーターと同じ Fast / Mid / Slow の順に並べる
+    syncSpeedBox.addItem ("Fast", 1);
     syncSpeedBox.addItem ("Mid",  2);
-    syncSpeedBox.addItem ("Fast", 3);
+    syncSpeedBox.addItem ("Slow", 3);
     syncSpeedBox.setSelectedId (2);
     syncSpeedBox.onChange = [this]
     {
         const bool isSync = (timingModeBox.getSelectedId() == 2);
         if (isSync)
         {
-            const double currentSyncVal = static_cast<double>(syncSpeedBox.getSelectedId() - 1);
+            const double currentSyncVal = static_cast<double>(2 - syncSpeedBox.getSelectedItemIndex());
             if (std::abs (speedSlider.getValue() - currentSyncVal) > 0.01)
                 speedSlider.setValue (currentSyncVal, juce::dontSendNotification);
         }
@@ -960,7 +960,7 @@ void AutoLevelerAudioProcessorEditor::updateSyncControlState()
         // BPM モード時: SPEED ノブを 3段階ステップ (0: Slow, 1: Mid, 2: Fast) に切り替え
         speedAttachment.reset();
         speedSlider.setRange (0.0, 2.0, 1.0);
-        speedSlider.setValue (static_cast<double>(syncSpeedBox.getSelectedId() - 1), juce::dontSendNotification);
+        speedSlider.setValue (static_cast<double>(2 - syncSpeedBox.getSelectedItemIndex()), juce::dontSendNotification);
     }
     else
     {
@@ -1029,12 +1029,12 @@ void AutoLevelerAudioProcessorEditor::timerCallback()
     const bool isSyncMode = (timingModeBox.getSelectedId() == 2);
     if (isSyncMode)
     {
-        const int syncIdx = juce::jlimit (0, 2, juce::roundToInt (speedSlider.getValue()));
-        const juce::String speedNames[] = { "Slow", "Mid", "Fast" };
+        // ノブ位置 (0: Slow, 2: Fast) をパラメーターの添字 (0: Fast, 2: Slow) に変換
+        const int knobStep = juce::jlimit (0, 2, juce::roundToInt (speedSlider.getValue()));
         const auto timing = AutoLevelerAudioProcessor::calculateTiming (
-            50.0f, true, syncIdx, audioProcessor.getCurrentBpm());
+            50.0f, true, 2 - knobStep, audioProcessor.getCurrentBpm());
 
-        attackReleaseLabel.setText (speedNames[syncIdx] + ": Att " + timing.attackLabel + " | Rel " + timing.releaseLabel, juce::dontSendNotification);
+        attackReleaseLabel.setText (timing.modeName + ": Att " + timing.attackLabel + " | Rel " + timing.releaseLabel, juce::dontSendNotification);
     }
     else
     {

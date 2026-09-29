@@ -40,6 +40,7 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     presets.push_back ({ "Podcast / Voiceover", 0.0f, -16.0f, 8.0f, 45.0f, 0.0f, true, true, true, 0, 0, 1 });
     // 8. Ballad Vocal (バラード向けスロー)
     presets.push_back ({ "Ballad Vocal", 0.0f, -15.0f, 5.0f, 25.0f, 0.0f, true, true, false, 0, 0, 1 });
+    jassert (presets.size() == numFactoryPresets);
 
     // ユーザー保存プリセットの読み込み
     loadUserPresets();
@@ -125,7 +126,8 @@ const juce::String AutoLevelerAudioProcessor::getProgramName (int index)
 
 void AutoLevelerAudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
-    if (index >= 0 && index < static_cast<int>(presets.size()))
+    // ファクトリープリセットは保存対象外のため改名させない (再起動で元に戻ってしまうため)
+    if (index >= static_cast<int>(numFactoryPresets) && index < static_cast<int>(presets.size()))
     {
         presets[static_cast<size_t>(index)].name = newName;
         saveUserPresetsToFile();
@@ -180,8 +182,8 @@ void AutoLevelerAudioProcessor::saveUserPresetsToFile()
     const auto file = getUserPresetFile();
     auto rootXml = std::make_unique<juce::XmlElement> ("UserPresets");
 
-    // インデックス 8 以降がユーザー追加プリセット
-    for (size_t i = 8; i < presets.size(); ++i)
+    // ファクトリープリセットの後ろがユーザー追加プリセット
+    for (size_t i = numFactoryPresets; i < presets.size(); ++i)
     {
         const auto& p = presets[i];
         auto* child = rootXml->createNewChildElement ("Preset");
@@ -347,7 +349,7 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     // -------------------------------------------------------------
     // 3. アタック / リリースの計算 (Free vs BPM Sync 3段階: Fast, Mid, Slow)
     // -------------------------------------------------------------
-    const auto timing = calculateTiming (speedVal, isSyncMode, syncSpeedChoice, currentBpm.load (std::memory_order_relaxed));
+    const auto timing = calculateTimingMs (speedVal, isSyncMode, syncSpeedChoice, currentBpm.load (std::memory_order_relaxed));
     const float attackCoeff  = 1.0f - std::exp (-1.0f / static_cast<float>(currentSampleRate * (timing.attackMs * 0.001f)));
     const float releaseCoeff = 1.0f - std::exp (-1.0f / static_cast<float>(currentSampleRate * (timing.releaseMs * 0.001f)));
 
