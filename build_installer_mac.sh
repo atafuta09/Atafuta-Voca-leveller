@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 ./build_plugin_mac.sh
 
-VERSION="$(sed -nE 's/^project\(Atafuta09Leveler VERSION ([0-9.]+).*/\1/p' CMakeLists.txt)"
+VERSION="$(head -n1 VERSION)"
 BUILD_DIR=build_mac
 command -v ninja >/dev/null 2>&1 && BUILD_DIR=build_mac_ninja
 ARTEFACTS="${BUILD_DIR}/AutoLeveler_artefacts/Release"

@@ -1,6 +1,6 @@
-# Atafuta09Leveler (Ver 1.04)
+# Atafuta09Leveler (Ver 1.0.5)
 
-![Atafuta09Leveler](https://img.shields.io/badge/version-1.04-blue.svg)
+![Atafuta09Leveler](https://img.shields.io/badge/version-1.0.5-blue.svg)
 ![VST3](https://img.shields.io/badge/format-VST3-orange.svg)
 ![AU](https://img.shields.io/badge/format-AU%20(macOS)-orange.svg)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
@@ -34,7 +34,7 @@
 ## ドキュメント一覧
 
 - 📖 **[取扱説明書・機能解説 (MANUAL.md)](MANUAL.md)**: 各ノブやフェーダー、フィルターの詳細な役割と使い方。
-- 📜 **[バージョン別 変更履歴 (CHANGELOG.md)](CHANGELOG.md)**: Ver 1.00 から Ver 1.04 までの開発作業と更新記録。
+- 📜 **[バージョン別 変更履歴 (CHANGELOG.md)](CHANGELOG.md)**: Ver 1.00 から Ver 1.0.5 までの開発作業と更新記録。
 
 ---
 

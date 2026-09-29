@@ -7,7 +7,7 @@
 - ボーカル特化のオートレベラー（Vocal Dynamics Rider）VST3 プラグイン `Atafuta09Leveler`。JUCE 8.0.4 / C++（CMake は `CMAKE_CXX_STANDARD 17`）。ユーザー向けの機能説明は `README.md` / `MANUAL.md`、変更履歴は `CHANGELOG.md`、残タスクは `TODO.md`。
 - `Source/`: DSP（`PluginProcessor.*`）、GUI（`PluginEditor.*`、`ModernDarkLookAndFeel.h`）。`ui-preview/`: GUI 検討用の静的 HTML モック（ビルド対象外）。JUCE は `JUCE/` があればそれを、無ければ CMake の FetchContent で取得する。
 - ビルドは Windows では `build_plugin.bat`（MSVC + Ninja、ターゲット `AutoLeveler_VST3`）、macOS では `build_plugin_mac.sh`（Xcode または Ninja、ターゲット `AutoLeveler_VST3` / `AutoLeveler_AU`、出力先 Xcode は `build_mac/`、Ninja は `build_mac_ninja/`）。自動テストは無い。macOS では AU を `auval -v aufx AtLv Ataf` で検証できる（事前に `~/Library/Audio/Plug-Ins/Components/` へ配置が必要）。
-- 注意: CMake のターゲット名は `AutoLeveler`、製品名は `Atafuta09Leveler`。バージョンは `CMakeLists.txt` の `project(VERSION)` と各ドキュメントで揃える。他社の商標・製品名をプリセット名や文言に使わない。オーディオスレッド（`processBlock`）内ではメモリ確保・ロック・ファイル I/O を行わない。
+- 注意: CMake のターゲット名は `AutoLeveler`、製品名は `Atafuta09Leveler`。バージョンの正本はリポジトリ直下の `VERSION`（CMake とインストーラーが読む）。ドキュメントの表記も揃える。他社の商標・製品名をプリセット名や文言に使わない。オーディオスレッド（`processBlock`）内ではメモリ確保・ロック・ファイル I/O を行わない。
 
 ## Git
 
