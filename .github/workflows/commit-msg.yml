@@ -1,0 +1,85 @@
+name: Validate commit subjects
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+
+jobs:
+  validate-commit-subjects:
+    name: Validate commit subjects
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request history
+        uses: actions/checkout@v4
+        with:
+          # shallow clone では base..head のコミットを取りこぼし得るため、全履歴を取得する。
+          fetch-depth: 0
+
+      - name: Validate every pull request commit subject
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # PR タイトルはコミット履歴へ直接入らず、merge commit の件名は
+          # gh pr merge --subject で別途指定するため、ここでは検証しない。
+          # スキップ用ラベルは規約の抜け穴になるため用意しない。
+          # 規約外のコミットは件名を直して push し直す。
+          if [ ! -f .githooks/commit-msg ]; then
+            echo "✗ .githooks/commit-msg が見つかりません。"
+            exit 1
+          fi
+
+          if ! git cat-file -e "${BASE_SHA}^{commit}" \
+            || ! git cat-file -e "${HEAD_SHA}^{commit}"; then
+            echo "✗ PR の base または head コミットを取得できませんでした。"
+            exit 1
+          fi
+
+          commit_list="$(mktemp)"
+          message_file="$(mktemp)"
+          hook_output="$(mktemp)"
+          cleanup() {
+            rm -f "$commit_list" "$message_file" "$hook_output"
+          }
+          trap cleanup EXIT
+
+          # --no-merges を指定しないため、親が 2 つ以上あるマージコミットも含む。
+          git rev-list --reverse "${BASE_SHA}..${HEAD_SHA}" > "$commit_list"
+
+          checked=0
+          rejected=0
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            checked=$((checked + 1))
+            short_sha="$(git rev-parse --short "$sha")"
+            subject="$(git log -1 --format=%s "$sha")"
+            # フックは件名だけでなくメッセージ全体を走査する（本文の Co-Authored-By 検出）。
+            # ローカルフックと同じ入力を渡すため、%s ではなく %B を書き出す。
+            git log -1 --format=%B "$sha" > "$message_file"
+
+            if bash .githooks/commit-msg "$message_file" > "$hook_output" 2>&1; then
+              echo "ok  ${short_sha} ${subject}"
+            else
+              rejected=$((rejected + 1))
+              echo "✗ ${short_sha} ${subject}"
+              while IFS= read -r reason; do
+                echo "  理由: ${reason}"
+              done < "$hook_output"
+            fi
+          done < "$commit_list"
+
+          if [ "$rejected" -gt 0 ]; then
+            echo "✗ ${checked} 件を検証し、${rejected} 件が規約に適合しませんでした。"
+            exit 1
+          fi
+
+          echo "ok: ${checked} 件のコミット件名を検証しました。"
