@@ -287,9 +287,9 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         return;
 
     // ホストBPMの取得
-    if (auto* playHead = getPlayHead())
+    if (auto* ph = getPlayHead())
     {
-        if (auto posOpt = playHead->getPosition())
+        if (auto posOpt = ph->getPosition())
         {
             if (posOpt->getBpm().hasValue())
                 currentBpm.store (static_cast<float>(*posOpt->getBpm()), std::memory_order_relaxed);
@@ -397,9 +397,28 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
                 tameNoiseBreathScore.store (match.breathScore, relaxed);
                 tameNoiseNormalScore.store (match.normalScore, relaxed);
 
-                const bool triggered = match.isNoiseDetected;
-                tameNoiseTrigger.store (triggered, relaxed);
-                tameNoiseLedIntensity.store (triggered ? 1.0f : 0.0f, relaxed);
+                // Learnnerプラグインと同一のSensitivity閾値検知 (0.15 ~ 0.65, デフォルト0.5で0.40)
+                const float sensitivity = tameAmountNorm; // 0.0 ~ 1.0
+                const float threshold   = 0.65f - (sensitivity * 0.50f);
+
+                bool noiseActive = false;
+                if (match.sibilanceScore >= threshold) noiseActive = true;
+                if (match.breathScore    >= threshold) noiseActive = true;
+
+                tameNoiseTrigger.store (isTameNoiseOn && noiseActive, relaxed);
+
+                // LED インジケーター強度
+                const float maxNoise = std::max (match.sibilanceScore, match.breathScore);
+                const float targetLed = (isTameNoiseOn && noiseActive)
+                    ? std::min (1.0f, 0.45f + ((maxNoise - threshold) / (1.0f - threshold + 1e-4f)) * 0.55f)
+                    : 0.0f;
+
+                float currentLed = tameNoiseLedIntensity.load (relaxed);
+                if (targetLed > currentLed)
+                    currentLed = targetLed;
+                else
+                    currentLed = std::max (0.0f, currentLed - 0.05f);
+                tameNoiseLedIntensity.store (currentLed, relaxed);
             }
         }
         tameLastDawSample = monoDetectorInput;

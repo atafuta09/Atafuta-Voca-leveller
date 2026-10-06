@@ -1,6 +1,6 @@
-# Atafuta09Leveler (Ver 1.0.5)
+# Atafuta09Leveler (Ver 1.0.6)
 
-![Atafuta09Leveler](https://img.shields.io/badge/version-1.0.5-blue.svg)
+![Atafuta09Leveler](https://img.shields.io/badge/version-1.0.6-blue.svg)
 ![Format](https://img.shields.io/badge/format-VST3%20%7C%20AU-orange.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
