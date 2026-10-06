@@ -32,8 +32,8 @@ private:
     bool bufferWrapped = false;
     bool guiEnabled = true;
 
-    float currentTargetDb = -12.0f;
-    float currentRangeDb  = 6.0f;
+    float currentTargetDb = -24.0f;
+    float currentRangeDb  = 7.0f;
 
     float chartTop    = 36.0f;
     float chartBottom = 480.0f;
@@ -237,7 +237,6 @@ public:
 
 private:
     void updateTimerState();
-    void updateSyncControlState();
 
     AutoLevelerAudioProcessor& audioProcessor;
 
@@ -275,15 +274,9 @@ private:
     juce::Label            targetLevelLabel;
     juce::Label            targetLevelValueLabel;
 
-    // セレクター (DETECTOR, TIMING, BPM SPEED)
+    // セレクター (DETECTOR)
     juce::ComboBox detectionModeBox;
     juce::Label    detectionModeLabel;
-
-    juce::ComboBox timingModeBox;
-    juce::Label    timingModeLabel;
-
-    juce::ComboBox syncSpeedBox;
-    juce::Label    syncSpeedLabel;
 
     // 下部トグル (LOOKAHEAD, GUI RENDER)
     juce::ToggleButton lookaheadButton;
@@ -293,7 +286,7 @@ private:
     juce::ToggleButton scFilterButton;
     juce::ToggleButton bypassButton;
 
-    // TAME NOISE セクション (LED, ON/OFF, LISTEN, AMOUNTノブ, RELEASEノブ)
+    // TAME NOISE セクション (LED, ON/OFF, LISTEN, AMOUNTノブ)
     TameNoiseLedComponent tameNoiseLed;
     juce::ToggleButton    tameNoiseButton;
     juce::ToggleButton    tameListenButton;
@@ -325,8 +318,6 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   speedAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   outputGainAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> detectionModeAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> timingModeAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncSpeedAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> meterModeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   lookaheadAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   scFilterAttachment;

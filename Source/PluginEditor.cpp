@@ -539,19 +539,9 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
         addAndMakeVisible (label);
     };
 
-    // --- 1. SPEED ノブ (BPMモード時3段階切替対応) ---
+    // --- 1. SPEED ノブ ---
     speedSlider.setSliderStyle (juce::Slider::RotaryVerticalDrag);
     speedSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    speedSlider.onValueChange = [this]
-    {
-        const bool isSync = (timingModeBox.getSelectedId() == 2);
-        if (isSync)
-        {
-            // BPM モード時: ノブ位置 (0: Slow, 1: Mid, 2: Fast) を syncSpeedBox の項目 (0: Fast, 1: Mid, 2: Slow) に伝達
-            const int knobStep = juce::jlimit (0, 2, juce::roundToInt (speedSlider.getValue()));
-            syncSpeedBox.setSelectedItemIndex (2 - knobStep, juce::sendNotificationSync);
-        }
-    };
     addAndMakeVisible (speedSlider);
 
     setupLabel (speedLabel, "SPEED", 11.0f);
@@ -560,7 +550,7 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     speedAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::speed, speedSlider);
 
-    // --- 2. RANGE ノブ (0 〜 13 dB、範囲はパラメーター定義からアタッチメントが設定する) ---
+    // --- 2. RANGE ノブ (0 〜 15 dB、範囲はパラメーター定義からアタッチメントが設定する) ---
     rangeSlider.setSliderStyle (juce::Slider::RotaryVerticalDrag);
     rangeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     addAndMakeVisible (rangeSlider);
@@ -607,7 +597,7 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     targetLevelAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::targetLevel, targetLevelSlider);
 
-    // --- 6. セレクター (DETECTOR / TIMING) ---
+    // --- 6. セレクター (DETECTOR) ---
     detectionModeBox.addItem ("RMS", 1);
     detectionModeBox.addItem ("Peak", 2);
     detectionModeBox.setSelectedId (1);
@@ -617,40 +607,6 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
 
     detectionModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         audioProcessor.getAPVTS(), ParameterIDs::detectionMode, detectionModeBox);
-
-    timingModeBox.addItem ("Free (ms)", 1);
-    timingModeBox.addItem ("Sync (BPM)", 2);
-    timingModeBox.setSelectedId (1);
-    timingModeBox.onChange = [this]
-    {
-        updateSyncControlState();
-    };
-    addAndMakeVisible (timingModeBox);
-
-    setupLabel (timingModeLabel, "TIMING", 9.0f);
-
-    timingModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
-        audioProcessor.getAPVTS(), ParameterIDs::timingMode, timingModeBox);
-
-    // ComboBoxAttachment は項目の並び順でパラメーターと対応するため、パラメーターと同じ Fast / Mid / Slow の順に並べる
-    syncSpeedBox.addItem ("Fast", 1);
-    syncSpeedBox.addItem ("Mid",  2);
-    syncSpeedBox.addItem ("Slow", 3);
-    syncSpeedBox.setSelectedId (2);
-    syncSpeedBox.onChange = [this]
-    {
-        const bool isSync = (timingModeBox.getSelectedId() == 2);
-        if (isSync)
-        {
-            const double currentSyncVal = static_cast<double>(2 - syncSpeedBox.getSelectedItemIndex());
-            if (std::abs (speedSlider.getValue() - currentSyncVal) > 0.01)
-                speedSlider.setValue (currentSyncVal, juce::dontSendNotification);
-        }
-    };
-    addChildComponent (syncSpeedBox);
-
-    syncSpeedAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
-        audioProcessor.getAPVTS(), ParameterIDs::syncSpeed, syncSpeedBox);
 
     // --- 7. 下部トグル (LOOKAHEAD / GUI RENDER) ---
     lookaheadButton.setButtonText ("LOOKAHEAD (22.5ms)");
@@ -745,7 +701,6 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
         if (pIdx >= 0 && pIdx < static_cast<int>(audioProcessor.getPresets().size()))
         {
             audioProcessor.setCurrentProgram (pIdx);
-            updateSyncControlState();
         }
     };
     addAndMakeVisible (presetBox);
@@ -824,8 +779,6 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     // ウィンドウサイズ設定 (1000 × 580 px)
     setSize (1000, 580);
 
-    updateSyncControlState();
-
     // 起動時は確実に GUI RENDER を ON に設定
     if (auto* param = audioProcessor.getAPVTS().getParameter (ParameterIDs::guiEnable))
         param->setValueNotifyingHost (1.0f);
@@ -880,7 +833,6 @@ void AutoLevelerAudioProcessorEditor::updateThemeColours()
         { inputGainValueLabel,   darkValue,                     whiteHeading },
         { outputGainValueLabel,  darkValue,                     whiteHeading },
         { detectionModeLabel,    darkMuted,                     whiteMuted },
-        { timingModeLabel,       darkMuted,                     whiteMuted },
         { zoomLabel,             darkMuted,                     juce::Colour (0x33, 0x41, 0x55) },
     };
     for (auto& [label, dark, white] : labelColours)
@@ -888,26 +840,6 @@ void AutoLevelerAudioProcessorEditor::updateThemeColours()
 
     sendLookAndFeelChange();
     repaint();
-}
-
-void AutoLevelerAudioProcessorEditor::updateSyncControlState()
-{
-    const bool isSyncMode = (timingModeBox.getSelectedId() == 2);
-
-    if (isSyncMode)
-    {
-        // BPM モード時: SPEED ノブを 3段階ステップ (0: Slow, 1: Mid, 2: Fast) に切り替え
-        speedAttachment.reset();
-        speedSlider.setRange (0.0, 2.0, 1.0);
-        speedSlider.setValue (static_cast<double>(2 - syncSpeedBox.getSelectedItemIndex()), juce::dontSendNotification);
-    }
-    else
-    {
-        // Free モード時: SPEED ノブを通常の連続可変 (0〜100%) に復帰
-        speedSlider.setRange (0.0, 100.0, 0.1);
-        speedAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-            audioProcessor.getAPVTS(), ParameterIDs::speed, speedSlider);
-    }
 }
 
 void AutoLevelerAudioProcessorEditor::updateTimerState()
@@ -965,28 +897,12 @@ void AutoLevelerAudioProcessorEditor::timerCallback()
     const float curTameAmount = static_cast<float>(tameAmountSlider.getValue());
     tameAmountValueLabel.setText (juce::String (juce::roundToInt (curTameAmount)) + "%", juce::dontSendNotification);
 
-
     // 専用 LED ライトのリアルタイム点灯更新
     tameNoiseLed.setIntensity (audioProcessor.getTameNoiseLedIntensity());
 
-    // 4. Attack / Release 値の両方を表示 (ユーザー要望対応)
-    const bool isSyncMode = (timingModeBox.getSelectedId() == 2);
-    if (isSyncMode)
-    {
-        // ノブ位置 (0: Slow, 2: Fast) をパラメーターの添字 (0: Fast, 2: Slow) に変換
-        const int knobStep = juce::jlimit (0, 2, juce::roundToInt (speedSlider.getValue()));
-        const auto timing = AutoLevelerAudioProcessor::calculateTiming (
-            50.0f, true, 2 - knobStep, audioProcessor.getCurrentBpm());
-
-        attackReleaseLabel.setText (timing.modeName + ": Att " + timing.attackLabel + " | Rel " + timing.releaseLabel, juce::dontSendNotification);
-    }
-    else
-    {
-        const auto timing = AutoLevelerAudioProcessor::calculateTiming (
-            static_cast<float>(speedSlider.getValue()), false, 1, audioProcessor.getCurrentBpm());
-
-        attackReleaseLabel.setText ("Att " + timing.attackLabel + " | Rel " + timing.releaseLabel, juce::dontSendNotification);
-    }
+    // 4. Attack / Release 値を表示 (Free モード)
+    const auto timing = AutoLevelerAudioProcessor::calculateTiming (static_cast<float>(speedSlider.getValue()));
+    attackReleaseLabel.setText ("Att " + timing.attackLabel + " | Rel " + timing.releaseLabel, juce::dontSendNotification);
 
     // 5. TARGET LEVEL フェーダー内部のリアルタイム入力メーター更新 (トラック内メーター統合型)
     const float inLinear = audioProcessor.getLatestInputRms();
@@ -1152,20 +1068,13 @@ void AutoLevelerAudioProcessorEditor::resized()
 
     ctrlPanel.removeFromTop (14); // セクション間マージン
 
-    // 3段目: DETECTOR & TIMING セレクターセクション (残り高さを美しく充填)
+    // 3段目: DETECTOR セレクターセクション
     auto selRow = ctrlPanel;
-    const int selRowH = 34;
-    selRow.removeFromTop (10);
+    selRow.removeFromTop (16);
 
-    auto detSec = selRow.removeFromTop (selRowH).reduced (2, 1);
+    auto detSec = selRow.removeFromTop (34).reduced (2, 1);
     detectionModeLabel.setBounds (detSec.removeFromLeft (70));
     detectionModeBox.setBounds   (detSec);
-
-    selRow.removeFromTop (8); // セレクター行間
-
-    auto timingSec = selRow.removeFromTop (selRowH).reduced (2, 1);
-    timingModeLabel.setBounds (timingSec.removeFromLeft (70));
-    timingModeBox.setBounds   (timingSec);
 
     // [右サブ列: TARGET LEVEL 縦長フェーダー]
     targetLevelLabel.setBounds      (targetCol.removeFromTop (24));

@@ -18,8 +18,6 @@ namespace ParameterIDs
     inline constexpr auto outputGain      = "output_gain";
     inline constexpr auto lookaheadEnable = "lookahead_enable";
     inline constexpr auto detectionMode   = "detection_mode";
-    inline constexpr auto timingMode      = "timing_mode";
-    inline constexpr auto syncSpeed       = "sync_speed";
     inline constexpr auto meterMode       = "meter_mode";
     inline constexpr auto guiEnable       = "gui_enable";
     inline constexpr auto bypass          = "bypass";
@@ -42,14 +40,14 @@ struct VisualDataPoint
 };
 
 /**
- * アタック・リリースの時定数およびUI表示情報
+ * アタック・リリースの時定数およびUI表示情報 (Freeモード)
  */
 struct TimingInfo
 {
-    float attackMs = 30.0f;
-    float releaseMs = 200.0f;
-    juce::String attackLabel = "30 ms";
-    juce::String releaseLabel = "200 ms";
+    float attackMs = 10.0f;
+    float releaseMs = 54.0f;
+    juce::String attackLabel = "10 ms";
+    juce::String releaseLabel = "54 ms";
     juce::String modeName = "Free";
 };
 
@@ -69,17 +67,15 @@ struct Preset
 {
     juce::String name;
     float inGain = 0.0f;
-    float targetLevel = -12.0f;
-    float range = 6.0f;
-    float speed = 50.0f;
+    float targetLevel = -24.0f;
+    float range = 7.0f;
+    float speed = 93.6f;
     float outGain = 0.0f;
     bool  lookahead = true;
     bool  tameNoise = true;
-    float tameAmount = 30.0f;
+    float tameAmount = 24.0f;
     bool  scFilter = true;
     int   detectionMode = 0; // 0: RMS, 1: Peak
-    int   timingMode = 0;    // 0: Free, 1: Sync
-    int   syncSpeed = 1;     // 0: Fast, 1: Mid, 2: Slow
 };
 
 class AutoLevelerAudioProcessor : public juce::AudioProcessor
@@ -135,9 +131,6 @@ public:
     bool  isTameNoiseTriggered()   const noexcept { return tameNoiseTrigger.load (std::memory_order_relaxed); }
     float getTameNoiseLedIntensity() const noexcept { return tameNoiseLedIntensity.load (std::memory_order_relaxed); }
 
-    // ホストBPMの取得
-    float getCurrentBpm() const noexcept { return currentBpm.load (std::memory_order_relaxed); }
-
     // プリセットリスト取得
     const std::vector<Preset>& getPresets() const noexcept { return presets; }
 
@@ -146,57 +139,25 @@ public:
     void loadUserPresets();
     void saveUserPresetsToFile();
 
-    // Speed値、Timingモード (Free / BPM Sync)、SyncSpeed (Fast:0, Mid:1, Slow:2) からAttack/Release時定数 (ms) を計算
+    // Speed値からAttack/Release時定数 (ms) を計算 (Free モード)
     // オーディオスレッド用 (ヒープ確保なし)
-    static inline TimingMs calculateTimingMs (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm) noexcept
+    static inline TimingMs calculateTimingMs (float speedVal) noexcept
     {
-        if (!isSyncMode)
-        {
-            // Free モード (ミリ秒)
-            const float speedNorm = juce::jlimit (0.0f, 1.0f, speedVal * 0.01f);
-            return { 150.0f * std::pow (8.0f / 150.0f, speedNorm),
-                     800.0f * std::pow (45.0f / 800.0f, speedNorm) };
-        }
-
-        const float bpm = (hostBpm >= 20.0f && hostBpm <= 400.0f) ? hostBpm : 120.0f;
-        const float quarterNoteMs = (60.0f / bpm) * 1000.0f;
-
-        switch (syncSpeedIndex)
-        {
-            case 0:  return { quarterNoteMs / 16.0f, quarterNoteMs / 4.0f }; // Fast: 1/64, 1/16
-            case 2:  return { quarterNoteMs / 4.0f,  quarterNoteMs };        // Slow: 1/16, 1/4
-            default: return { quarterNoteMs / 8.0f,  quarterNoteMs / 2.0f }; // Mid:  1/32, 1/8
-        }
+        const float speedNorm = juce::jlimit (0.0f, 1.0f, speedVal * 0.01f);
+        return { 150.0f * std::pow (8.0f / 150.0f, speedNorm),
+                 800.0f * std::pow (45.0f / 800.0f, speedNorm) };
     }
 
     // UI 表示用: 時定数に加えてラベル文字列を組み立てる (メッセージスレッド専用)
-    static inline TimingInfo calculateTiming (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm)
+    static inline TimingInfo calculateTiming (float speedVal)
     {
-        const auto ms = calculateTimingMs (speedVal, isSyncMode, syncSpeedIndex, hostBpm);
+        const auto ms = calculateTimingMs (speedVal);
         TimingInfo info;
         info.attackMs  = ms.attackMs;
         info.releaseMs = ms.releaseMs;
-
-        const juce::String attackMsText  = juce::String (juce::roundToInt (ms.attackMs));
-        const juce::String releaseMsText = juce::String (juce::roundToInt (ms.releaseMs));
-
-        if (!isSyncMode)
-        {
-            info.attackLabel  = attackMsText + " ms";
-            info.releaseLabel = releaseMsText + " ms";
-            info.modeName     = "Free";
-            return info;
-        }
-
-        // Fast(0), Mid(1), Slow(2)。範囲外は calculateTimingMs と同じく Mid 扱い
-        const int idx = (syncSpeedIndex == 0 || syncSpeedIndex == 2) ? syncSpeedIndex : 1;
-        const char* modeNames[]    = { "Fast", "Mid", "Slow" };
-        const char* attackNotes[]  = { "1/64", "1/32", "1/16" };
-        const char* releaseNotes[] = { "1/16", "1/8",  "1/4"  };
-
-        info.attackLabel  = juce::String (attackNotes[idx])  + " (" + attackMsText  + "ms)";
-        info.releaseLabel = juce::String (releaseNotes[idx]) + " (" + releaseMsText + "ms)";
-        info.modeName     = modeNames[idx];
+        info.attackLabel  = juce::String (juce::roundToInt (ms.attackMs)) + " ms";
+        info.releaseLabel = juce::String (juce::roundToInt (ms.releaseMs)) + " ms";
+        info.modeName     = "Free";
         return info;
     }
 
@@ -215,8 +176,6 @@ private:
     std::atomic<float>* outputGainParam      = nullptr;
     std::atomic<float>* lookaheadEnableParam = nullptr;
     std::atomic<float>* detectionModeParam   = nullptr;
-    std::atomic<float>* timingModeParam      = nullptr;
-    std::atomic<float>* syncSpeedParam       = nullptr;
     std::atomic<float>* guiEnableParam       = nullptr;
     std::atomic<float>* bypassParam          = nullptr;
 
@@ -287,9 +246,6 @@ private:
     float smoothedRmsOut = 0.0f;
     float smoothedVuIn   = 0.0f;
     float smoothedVuOut  = 0.0f;
-
-    // BPM
-    std::atomic<float> currentBpm { 120.0f };
 
     // リアルタイム波形描画用 FIFO
     static constexpr int fifoCapacity = 4096;
