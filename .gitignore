@@ -4,6 +4,9 @@ cmake-build-*/
 bin/
 JUCE/
 juceaide/
+*.pkg
+compile_commands.json
+.cache/
 
 # Visual Studio & IDE temporary files
 .vs/
@@ -14,7 +17,8 @@ juceaide/
 .vscode/
 .idea/
 *.xcodeproj/
-*.xcworkspace/
+*.xcworkspace
+.claude/settings.local.json
 
 # Python & AI model training artifacts
 __pycache__/
@@ -36,4 +40,3 @@ env/
 ehthumbs.db
 Thumbs.db
 desktop.ini
-

@@ -1,10 +1,6 @@
 #pragma once
 
-#if __has_include(<JuceHeader.h>)
- #include <JuceHeader.h>
-#else
- #include <juce_gui_basics/juce_gui_basics.h>
-#endif
+#include <juce_gui_basics/juce_gui_basics.h>
 
 // ==============================================================================
 /**
@@ -252,54 +248,27 @@ public:
                                                            sliderPos - (thumbH * 0.5f),
                                                            thumbW, thumbH);
 
-            if (isWhite)
-            {
-                g.setColour (juce::Colours::black.withAlpha (0.22f));
-                g.fillRoundedRectangle (thumbRect.translated (0.0f, 1.5f), 3.0f);
+            // ホワイト: シルバーサム / ダーク: 実機ブラックサム
+            g.setColour (juce::Colours::black.withAlpha (isWhite ? 0.22f : 0.85f));
+            g.fillRoundedRectangle (thumbRect.translated (0.0f, isWhite ? 1.5f : 2.0f), 3.0f);
 
-                g.setGradientFill (juce::ColourGradient (
-                    juce::Colour (0xf8, 0xfa, 0xfc), thumbRect.getX(), thumbRect.getY(),
-                    juce::Colour (0xcb, 0xd5, 0xe1), thumbRect.getX(), thumbRect.getBottom(),
-                    false));
-                g.fillRoundedRectangle (thumbRect, 3.0f);
+            g.setGradientFill (juce::ColourGradient (
+                isWhite ? juce::Colour (0xf8, 0xfa, 0xfc) : juce::Colour (0x3d, 0x46, 0x57), thumbRect.getX(), thumbRect.getY(),
+                isWhite ? juce::Colour (0xcb, 0xd5, 0xe1) : juce::Colour (0x10, 0x13, 0x1a), thumbRect.getX(), thumbRect.getBottom(),
+                false));
+            g.fillRoundedRectangle (thumbRect, 3.0f);
 
-                g.setColour (juce::Colour (0x33, 0x41, 0x55));
-                g.drawRoundedRectangle (thumbRect, 3.0f, 1.2f);
+            g.setColour (isWhite ? juce::Colour (0x33, 0x41, 0x55) : juce::Colour (0x64, 0x74, 0x8b));
+            g.drawRoundedRectangle (thumbRect, 3.0f, 1.2f);
 
-                const auto innerGroove = thumbRect.reduced (4.0f, 4.0f);
-                g.setColour (juce::Colour (0x33, 0x41, 0x55));
-                g.fillRoundedRectangle (innerGroove, 2.0f);
+            g.setColour (isWhite ? juce::Colour (0x33, 0x41, 0x55) : juce::Colour (0x08, 0x0a, 0x10));
+            g.fillRoundedRectangle (thumbRect.reduced (4.0f, 4.0f), 2.0f);
 
-                const float lineY = thumbRect.getCentreY();
-                g.setColour (juce::Colour (0x02, 0x84, 0xc7));
-                g.drawLine (thumbRect.getX() + 6.0f, lineY, thumbRect.getRight() - 6.0f, lineY, 2.5f);
-                g.setColour (juce::Colours::white);
-                g.drawLine (thumbRect.getX() + 6.0f, lineY, thumbRect.getRight() - 6.0f, lineY, 1.0f);
-            }
-            else
-            {
-                g.setColour (juce::Colours::black.withAlpha (0.85f));
-                g.fillRoundedRectangle (thumbRect.translated (0.0f, 2.0f), 3.0f);
-
-                g.setGradientFill (juce::ColourGradient (
-                    juce::Colour (0x3d, 0x46, 0x57), thumbRect.getX(), thumbRect.getY(),
-                    juce::Colour (0x10, 0x13, 0x1a), thumbRect.getX(), thumbRect.getBottom(),
-                    false));
-                g.fillRoundedRectangle (thumbRect, 3.0f);
-
-                g.setColour (juce::Colour (0x64, 0x74, 0x8b));
-                g.drawRoundedRectangle (thumbRect, 3.0f, 1.2f);
-
-                const auto innerGroove = thumbRect.reduced (4.0f, 4.0f);
-                g.setColour (juce::Colour (0x08, 0x0a, 0x10));
-                g.fillRoundedRectangle (innerGroove, 2.0f);
-
-                const float lineY = thumbRect.getCentreY();
-                g.setColour (juce::Colour (0x60, 0xa5, 0xfa).withAlpha (0.7f));
-                g.drawLine (thumbRect.getX() + 6.0f, lineY, thumbRect.getRight() - 6.0f, lineY, 3.0f);
-                g.setColour (juce::Colours::white);
-                g.drawLine (thumbRect.getX() + 6.0f, lineY, thumbRect.getRight() - 6.0f, lineY, 1.4f);
-            }
+            const float lineY = thumbRect.getCentreY();
+            g.setColour (isWhite ? juce::Colour (0x02, 0x84, 0xc7) : juce::Colour (0x60, 0xa5, 0xfa).withAlpha (0.7f));
+            g.drawLine (thumbRect.getX() + 6.0f, lineY, thumbRect.getRight() - 6.0f, lineY, isWhite ? 2.5f : 3.0f);
+            g.setColour (juce::Colours::white);
+            g.drawLine (thumbRect.getX() + 6.0f, lineY, thumbRect.getRight() - 6.0f, lineY, isWhite ? 1.0f : 1.4f);
         }
         else
         {
@@ -310,34 +279,17 @@ public:
             const float trackH = bounds.getHeight() - 8.0f;
             const auto trackRect = juce::Rectangle<float> (trackX, trackY, trackW, trackH);
 
-            if (isWhite)
-            {
-                g.setColour (juce::Colour (0x02, 0x84, 0xc7).withAlpha (0.20f));
-                g.drawRoundedRectangle (trackRect.expanded (1.5f), 5.0f, 1.5f);
+            g.setColour (isWhite ? juce::Colour (0x02, 0x84, 0xc7).withAlpha (0.20f) : juce::Colour (0x3b, 0x82, 0xf6).withAlpha (0.25f));
+            g.drawRoundedRectangle (trackRect.expanded (1.5f), 5.0f, 1.5f);
 
-                g.setColour (juce::Colour (0xe2, 0xe8, 0xf0));
-                g.fillRoundedRectangle (trackRect, 4.5f);
+            g.setColour (isWhite ? juce::Colour (0xe2, 0xe8, 0xf0) : juce::Colour (0x07, 0x08, 0x0c));
+            g.fillRoundedRectangle (trackRect, 4.5f);
 
-                g.setColour (juce::Colour (0x64, 0x74, 0x8b));
-                g.drawLine (bounds.getCentreX(), trackY + 2.0f, bounds.getCentreX(), trackY + trackH - 2.0f, 3.0f);
+            g.setColour (isWhite ? juce::Colour (0x64, 0x74, 0x8b) : juce::Colour (0x02, 0x02, 0x04));
+            g.drawLine (bounds.getCentreX(), trackY + 2.0f, bounds.getCentreX(), trackY + trackH - 2.0f, 3.0f);
 
-                g.setColour (juce::Colour (0x94, 0xa3, 0xb8));
-                g.drawRoundedRectangle (trackRect, 4.5f, 1.2f);
-            }
-            else
-            {
-                g.setColour (juce::Colour (0x3b, 0x82, 0xf6).withAlpha (0.25f));
-                g.drawRoundedRectangle (trackRect.expanded (1.5f), 5.0f, 1.5f);
-
-                g.setColour (juce::Colour (0x07, 0x08, 0x0c));
-                g.fillRoundedRectangle (trackRect, 4.5f);
-
-                g.setColour (juce::Colour (0x02, 0x02, 0x04));
-                g.drawLine (bounds.getCentreX(), trackY + 2.0f, bounds.getCentreX(), trackY + trackH - 2.0f, 3.0f);
-
-                g.setColour (juce::Colour (0xd0, 0xdb, 0xf5).withAlpha (0.85f));
-                g.drawRoundedRectangle (trackRect, 4.5f, 1.0f);
-            }
+            g.setColour (isWhite ? juce::Colour (0x94, 0xa3, 0xb8) : juce::Colour (0xd0, 0xdb, 0xf5).withAlpha (0.85f));
+            g.drawRoundedRectangle (trackRect, 4.5f, isWhite ? 1.2f : 1.0f);
 
             // サム (横幅26px, 縦幅11px)
             const float thumbW = 26.0f;
@@ -346,41 +298,24 @@ public:
                                                            sliderPos - (thumbH * 0.5f),
                                                            thumbW, thumbH);
 
-            if (isWhite)
+            g.setColour (juce::Colours::black.withAlpha (isWhite ? 0.18f : 0.8f));
+            g.fillRoundedRectangle (thumbRect.translated (0.0f, 1.5f), 2.5f);
+
+            g.setGradientFill (juce::ColourGradient (
+                isWhite ? juce::Colour (0xf8, 0xfa, 0xfc) : juce::Colour (0x35, 0x3d, 0x4c), thumbRect.getX(), thumbRect.getY(),
+                isWhite ? juce::Colour (0xcb, 0xd5, 0xe1) : juce::Colour (0x12, 0x15, 0x1c), thumbRect.getX(), thumbRect.getBottom(),
+                false));
+            g.fillRoundedRectangle (thumbRect, 2.5f);
+
+            g.setColour (isWhite ? juce::Colour (0x47, 0x55, 0x69) : juce::Colour (0x52, 0x60, 0x75));
+            g.drawRoundedRectangle (thumbRect, 2.5f, 1.0f);
+
+            const float lineY = thumbRect.getCentreY();
+            g.setColour (isWhite ? juce::Colour (0x02, 0x84, 0xc7) : juce::Colour (0x60, 0xa5, 0xfa).withAlpha (0.6f));
+            g.drawLine (thumbRect.getX() + 4.0f, lineY, thumbRect.getRight() - 4.0f, lineY, isWhite ? 2.2f : 2.5f);
+
+            if (!isWhite) // ダークのみ白熱コアを重ねる
             {
-                g.setColour (juce::Colours::black.withAlpha (0.18f));
-                g.fillRoundedRectangle (thumbRect.translated (0.0f, 1.5f), 2.5f);
-
-                g.setGradientFill (juce::ColourGradient (
-                    juce::Colour (0xf8, 0xfa, 0xfc), thumbRect.getX(), thumbRect.getY(),
-                    juce::Colour (0xcb, 0xd5, 0xe1), thumbRect.getX(), thumbRect.getBottom(),
-                    false));
-                g.fillRoundedRectangle (thumbRect, 2.5f);
-
-                g.setColour (juce::Colour (0x47, 0x55, 0x69));
-                g.drawRoundedRectangle (thumbRect, 2.5f, 1.0f);
-
-                const float lineY = thumbRect.getCentreY();
-                g.setColour (juce::Colour (0x02, 0x84, 0xc7));
-                g.drawLine (thumbRect.getX() + 4.0f, lineY, thumbRect.getRight() - 4.0f, lineY, 2.2f);
-            }
-            else
-            {
-                g.setColour (juce::Colours::black.withAlpha (0.8f));
-                g.fillRoundedRectangle (thumbRect.translated (0.0f, 1.5f), 2.5f);
-
-                g.setGradientFill (juce::ColourGradient (
-                    juce::Colour (0x35, 0x3d, 0x4c), thumbRect.getX(), thumbRect.getY(),
-                    juce::Colour (0x12, 0x15, 0x1c), thumbRect.getX(), thumbRect.getBottom(),
-                    false));
-                g.fillRoundedRectangle (thumbRect, 2.5f);
-
-                g.setColour (juce::Colour (0x52, 0x60, 0x75));
-                g.drawRoundedRectangle (thumbRect, 2.5f, 1.0f);
-
-                const float lineY = thumbRect.getCentreY();
-                g.setColour (juce::Colour (0x60, 0xa5, 0xfa).withAlpha (0.6f));
-                g.drawLine (thumbRect.getX() + 4.0f, lineY, thumbRect.getRight() - 4.0f, lineY, 2.5f);
                 g.setColour (juce::Colours::white);
                 g.drawLine (thumbRect.getX() + 4.0f, lineY, thumbRect.getRight() - 4.0f, lineY, 1.0f);
             }

@@ -20,7 +20,6 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     detectionModeParam   = apvts.getRawParameterValue (ParameterIDs::detectionMode);
     timingModeParam      = apvts.getRawParameterValue (ParameterIDs::timingMode);
     syncSpeedParam       = apvts.getRawParameterValue (ParameterIDs::syncSpeed);
-    meterModeParam       = apvts.getRawParameterValue (ParameterIDs::meterMode);
     guiEnableParam       = apvts.getRawParameterValue (ParameterIDs::guiEnable);
     bypassParam          = apvts.getRawParameterValue (ParameterIDs::bypass);
 
@@ -29,27 +28,24 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     tameNoiseAmountParam = apvts.getRawParameterValue (ParameterIDs::tameNoiseAmount);
     scFilterEnableParam  = apvts.getRawParameterValue (ParameterIDs::scFilterEnable);
 
+    for (auto* param : { inputGainParam, targetLevelParam, rangeParam, speedParam, outputGainParam,
+                         lookaheadEnableParam, detectionModeParam, timingModeParam, syncSpeedParam,
+                         guiEnableParam, bypassParam, tameNoiseEnableParam, tameNoiseListenParam,
+                         tameNoiseAmountParam, scFilterEnableParam })
+        jassertquiet (param != nullptr);
+
     // プリセット機能: ユーザー保存プリセットのみロード (初期ファクトリープリセットはなし)
     loadUserPresets();
 
     // AI TameNoise 検出器の初期化 ＆ ユーザー学習プロファイルの自動ロード
     const auto learnedDir = AtafutaAudio::VocaNoiseLearnner::getDefaultLearnedDataDir();
-    tameNoiseEngine.loadUserProfilesFromDirectory(learnedDir);
-}
-
-AutoLevelerAudioProcessor::~AutoLevelerAudioProcessor()
-{
+    tameNoiseEngine.loadUserProfilesFromDirectory (learnedDir);
 }
 
 const juce::String AutoLevelerAudioProcessor::getName() const
 {
     return "Atafuta09Leveler";
 }
-
-bool AutoLevelerAudioProcessor::acceptsMidi() const { return false; }
-bool AutoLevelerAudioProcessor::producesMidi() const { return false; }
-bool AutoLevelerAudioProcessor::isMidiEffect() const { return false; }
-double AutoLevelerAudioProcessor::getTailLengthSeconds() const { return 0.0; }
 
 int AutoLevelerAudioProcessor::getNumPrograms()
 {
@@ -201,127 +197,16 @@ bool AutoLevelerAudioProcessor::saveUserPreset (const juce::String& presetName)
     return true;
 }
 
-// ==============================================================================
-// パラメータレイアウトの作成
-// ==============================================================================
-juce::AudioProcessorValueTreeState::ParameterLayout AutoLevelerAudioProcessor::createParameterLayout()
+bool AutoLevelerAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
+        && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
 
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::inputGain, 1 },
-        "Input Gain",
-        juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),
-        0.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("dB")
-    ));
+    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+        return false;
 
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::targetLevel, 1 },
-        "Target Level",
-        juce::NormalisableRange<float> (-36.0f, 0.0f, 0.1f),
-        -12.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("dB")
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::range, 1 },
-        "Range",
-        juce::NormalisableRange<float> (0.0f, 13.0f, 0.1f),
-        6.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("dB")
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::speed, 1 },
-        "Speed",
-        juce::NormalisableRange<float> (0.0f, 100.0f, 1.0f),
-        50.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("%")
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::outputGain, 1 },
-        "Output Gain",
-        juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),
-        0.0f,
-        juce::AudioParameterFloatAttributes().withLabel ("dB")
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::lookaheadEnable, 1 },
-        "Lookahead",
-        true
-    ));
-
-    // --- TameNoise & 音質変化0 サイドチェインフィルター ---
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::tameNoiseEnable, 1 },
-        "Tame Noise",
-        true
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::tameNoiseListen, 1 },
-        "Tame Listen",
-        false
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParameterIDs::tameNoiseAmount, 1 },
-        "Tame Sensitivity",
-        juce::NormalisableRange<float> (0.0f, 100.0f, 0.5f),
-        50.0f, // デフォルト 50% (Learnner Sensitivity 0.5 と完全一致)
-        juce::AudioParameterFloatAttributes().withLabel ("%")
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::scFilterEnable, 1 },
-        "SC Filter",
-        true
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { ParameterIDs::detectionMode, 1 },
-        "Detection Mode",
-        juce::StringArray { "RMS", "Peak" },
-        0
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { ParameterIDs::timingMode, 1 },
-        "Timing Mode",
-        juce::StringArray { "Free (ms)", "BPM Sync" },
-        0
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { ParameterIDs::syncSpeed, 1 },
-        "Sync Speed",
-        juce::StringArray { "Fast (1/64)", "Mid (1/32)", "Slow (1/16)" },
-        1
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { ParameterIDs::meterMode, 1 },
-        "Meter Mode",
-        juce::StringArray { "Peak", "RMS", "VU" },
-        0
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::guiEnable, 1 },
-        "GUI Animation",
-        true
-    ));
-
-    params.push_back (std::make_unique<juce::AudioParameterBool> (
-        juce::ParameterID { ParameterIDs::bypass, 1 },
-        "Bypass",
-        false
-    ));
-
-    return { params.begin(), params.end() };
+    return true;
 }
 
 // ==============================================================================
@@ -329,35 +214,45 @@ juce::AudioProcessorValueTreeState::ParameterLayout AutoLevelerAudioProcessor::c
 // ==============================================================================
 void AutoLevelerAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    currentSampleRate = sampleRate;
+    currentSampleRate = (sampleRate > 0.0) ? sampleRate : 44100.0;
 
-    // Lookahead ディレイバッファの初期化 (原音スルー用)
-    lookaheadSamples = juce::roundToInt (static_cast<float>(sampleRate) * (lookaheadMs * 0.001f));
-    delayBufferSize = lookaheadSamples + samplesPerBlock + 128;
-    delayBuffer.setSize (2, delayBufferSize);
+    // 1. Lookaheadディレイ（22.5ms）のサンプル数計算
+    lookaheadSamples = juce::jmax (1, juce::roundToInt (currentSampleRate * (lookaheadMs * 0.001f)));
+    const bool isLookaheadOn = lookaheadEnableParam != nullptr && (lookaheadEnableParam->load() > 0.5f);
+    setLatencySamples (isLookaheadOn ? lookaheadSamples : 0);
+
+    // Lookaheadディレイバッファの初期化
+    delayBufferSize = lookaheadSamples + samplesPerBlock + 1024;
+    delayBuffer.setSize (getTotalNumInputChannels(), delayBufferSize);
     delayBuffer.clear();
     delayBufferWritePos = 0;
 
+    // 2. ゲインスムージング初期化
     smoothedInputGainDb.reset (currentSampleRate, 0.02);
     smoothedInputGainDb.setCurrentAndTargetValue (inputGainParam != nullptr ? inputGainParam->load() : 0.0f);
 
     smoothedOutputGainDb.reset (currentSampleRate, 0.02);
     smoothedOutputGainDb.setCurrentAndTargetValue (outputGainParam != nullptr ? outputGainParam->load() : 0.0f);
 
-    // 音質変化ゼロのサイドチェイン検出専用 HPF (100Hz)
+    lookaheadMix.reset (currentSampleRate, 0.02);
+    lookaheadMix.setCurrentAndTargetValue (isLookaheadOn ? 1.0f : 0.0f);
+
+    bypassMix.reset (currentSampleRate, 0.02);
+    bypassMix.setCurrentAndTargetValue ((bypassParam != nullptr && bypassParam->load() > 0.5f) ? 1.0f : 0.0f);
+
+    // 3. 音質変化ゼロのサイドチェイン検出専用 HPF (100Hz) の初期化
     sidechainDetectorHPF.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass (currentSampleRate, 100.0f);
     sidechainDetectorHPF.reset();
 
-    // TameNoise 16kHz リサンプラー & エンジン初期化
-    tameNoiseEngine.reset();
-    tameRingBuffer16k.assign (TAME_BLOCK_SIZE * 4, 0.0f);
-    tameRingWritePos = 0;
-    tameSamplesSinceLastAnalysis = 0;
+    // 4. AI TameNoise エンジンのリサンプラー・リングバッファ初期化
     tameResampleRatio = TAME_INTERNAL_SR / currentSampleRate;
     tameResamplePhase = 0.0;
     tameLastDawSample = 0.0f;
+    tameSamplesSinceLastAnalysis = 0;
+    tameRingBuffer16k.assign (4096, 0.0f);
+    tameRingWritePos = 0;
 
-    tameAuditionGain.reset (currentSampleRate, 0.015);
+    tameAuditionGain.reset (currentSampleRate, 0.01);
     tameAuditionGain.setCurrentAndTargetValue (0.0f);
 
     fastEnvelopeRms = 0.0f;
@@ -368,38 +263,22 @@ void AutoLevelerAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     smoothedVuIn = 0.0f;
     smoothedVuOut = 0.0f;
 
-    downsampleInterval = juce::roundToInt (static_cast<float>(currentSampleRate) / 100.0f);
-    if (downsampleInterval < 1) downsampleInterval = 1;
+    // 5. UI波形送信用ダウンサンプラーの初期化（約100Hz）
+    downsampleInterval = juce::jmax (1, juce::roundToInt (currentSampleRate / 100.0));
     downsampleCounter = 0;
     inputAccumSumSquares = 0.0f;
     outputAccumSumSquares = 0.0f;
     gainChangeAccumDb = 0.0f;
 
     visualFifo.reset();
-    std::fill (visualFifoBuffer.begin(), visualFifoBuffer.end(), VisualDataPoint{});
-}
-
-void AutoLevelerAudioProcessor::releaseResources()
-{
-}
-
-bool AutoLevelerAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
-{
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
-        return false;
-
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
-        return false;
-
-    return true;
 }
 
 // ==============================================================================
 // オーディオ処理 (processBlock)
 // ==============================================================================
-void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& /*midiMessages*/)
+void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    juce::ignoreUnused (midiMessages);
     juce::ScopedNoDenormals noDenormals;
     const int numSamples = buffer.getNumSamples();
     const int numChannels = buffer.getNumChannels();
@@ -418,48 +297,49 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     }
 
     // パラメータ値の取得
-    const float inGainDb          = inputGainParam       != nullptr ? inputGainParam->load (std::memory_order_relaxed)        : 0.0f;
-    const float targetLevelDb     = targetLevelParam     != nullptr ? targetLevelParam->load (std::memory_order_relaxed)      : -12.0f;
-    const float rangeDb           = rangeParam           != nullptr ? rangeParam->load (std::memory_order_relaxed)            : 6.0f;
-    const float speedVal          = speedParam           != nullptr ? speedParam->load (std::memory_order_relaxed)            : 50.0f;
-    const float outGainDb         = outputGainParam      != nullptr ? outputGainParam->load (std::memory_order_relaxed)       : 0.0f;
-    const bool isLookaheadOn      = lookaheadEnableParam != nullptr && (lookaheadEnableParam->load (std::memory_order_relaxed) > 0.5f);
-    const bool isPeakDetection    = detectionModeParam   != nullptr && (detectionModeParam->load (std::memory_order_relaxed)   > 0.5f);
-    const bool isSyncMode         = timingModeParam      != nullptr && (timingModeParam->load (std::memory_order_relaxed)      > 0.5f);
-    const int syncSpeedChoice     = syncSpeedParam       != nullptr ? juce::roundToInt (syncSpeedParam->load (std::memory_order_relaxed)) : 1;
-    const bool isGuiEnabled       = guiEnableParam       != nullptr && (guiEnableParam->load (std::memory_order_relaxed)       > 0.5f);
-    const bool isBypassed         = bypassParam          != nullptr && (bypassParam->load (std::memory_order_relaxed)          > 0.5f);
+    constexpr auto relaxed = std::memory_order_relaxed;
+    const float inGainDb          = inputGainParam->load (relaxed);
+    const float targetLevelDb     = targetLevelParam->load (relaxed);
+    const float rangeDb           = rangeParam->load (relaxed);
+    const float speedVal          = speedParam->load (relaxed);
+    const float outGainDb         = outputGainParam->load (relaxed);
+    const bool isLookaheadOn      = lookaheadEnableParam->load (relaxed) > 0.5f;
+    const bool isPeakDetection    = detectionModeParam->load (relaxed)   > 0.5f;
+    const bool isSyncMode         = timingModeParam->load (relaxed)      > 0.5f;
+    const int syncSpeedChoice     = juce::roundToInt (syncSpeedParam->load (relaxed));
+    const bool isGuiEnabled       = guiEnableParam->load (relaxed)       > 0.5f;
+    const bool isBypassed         = bypassParam->load (relaxed)          > 0.5f;
 
-    const bool isTameNoiseOn      = tameNoiseEnableParam != nullptr && (tameNoiseEnableParam->load (std::memory_order_relaxed) > 0.5f);
-    const bool isTameListenOn     = tameNoiseListenParam != nullptr && (tameNoiseListenParam->load (std::memory_order_relaxed) > 0.5f);
-    const float tameAmountNorm    = tameNoiseAmountParam != nullptr ? (tameNoiseAmountParam->load (std::memory_order_relaxed) * 0.01f) : 0.30f;
-    const bool isScFilterOn       = scFilterEnableParam  != nullptr && (scFilterEnableParam->load (std::memory_order_relaxed) > 0.5f);
+    const bool isTameNoiseOn      = tameNoiseEnableParam->load (relaxed) > 0.5f;
+    const bool isTameListenOn     = tameNoiseListenParam->load (relaxed) > 0.5f;
+    const float tameAmountNorm    = tameNoiseAmountParam->load (relaxed) * 0.01f;
+    const bool isScFilterOn       = scFilterEnableParam->load (relaxed)  > 0.5f;
 
     // DAWレイテンシー報告
     const int targetLatency = (isLookaheadOn && !isBypassed) ? lookaheadSamples : 0;
     if (getLatencySamples() != targetLatency)
         setLatencySamples (targetLatency);
 
-    // バイパス時の高速処理
     if (isBypassed)
     {
-        latestInputPeak.store (0.0f, std::memory_order_relaxed);
-        latestOutputPeak.store (0.0f, std::memory_order_relaxed);
-        latestInputRms.store (0.0f, std::memory_order_relaxed);
-        latestOutputRms.store (0.0f, std::memory_order_relaxed);
-        latestInputVu.store (0.0f, std::memory_order_relaxed);
-        latestOutputVu.store (0.0f, std::memory_order_relaxed);
+        latestInputPeak.store  (0.0f, relaxed);
+        latestOutputPeak.store (0.0f, relaxed);
+        latestInputRms.store   (0.0f, relaxed);
+        latestOutputRms.store  (0.0f, relaxed);
+        latestInputVu.store    (0.0f, relaxed);
+        latestOutputVu.store   (0.0f, relaxed);
         return;
     }
 
     smoothedInputGainDb.setTargetValue (inGainDb);
     smoothedOutputGainDb.setTargetValue (outGainDb);
+    bypassMix.setTargetValue (isBypassed ? 1.0f : 0.0f);
+    lookaheadMix.setTargetValue (isLookaheadOn ? 1.0f : 0.0f);
 
-    // 時定数計算
-    const auto timing = calculateTiming (speedVal, isSyncMode, syncSpeedChoice, currentBpm.load (std::memory_order_relaxed));
+    // 時定数計算 (ヒープ確保なし)
+    const auto timing = calculateTimingMs (speedVal, isSyncMode, syncSpeedChoice, currentBpm.load (relaxed));
     const float attackCoeff  = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (timing.attackMs * 0.001f)));
     const float releaseCoeff = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (timing.releaseMs * 0.001f)));
-    // TameNoise 解除時のゲイン復帰時定数: ユーザー要望により 50ms 固定
     constexpr float tameReleaseMs = 50.0f;
     const float tameReleaseCoeff = 1.0f - std::exp (-1.0f / (static_cast<float>(currentSampleRate) * (tameReleaseMs * 0.001f)));
 
@@ -486,7 +366,7 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         const float sampleInR = inR[i] * inG;
         const float monoDetectorInput = 0.5f * (sampleInL + sampleInR);
 
-        // 2. Lookahead 遅延バッファへの書き込み (原音スルー用: 音質変化0!)
+        // 2. Lookahead 遅延バッファへの書き込み (原音スルー用: 音質変化0)
         delayBuffer.setSample (0, delayBufferWritePos, sampleInL);
         if (numChannels > 1)
             delayBuffer.setSample (1, delayBufferWritePos, sampleInR);
@@ -513,103 +393,47 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
                 }
 
                 auto match = tameNoiseEngine.analyzeBlock (blockBuffer.data(), TAME_BLOCK_SIZE);
-                tameNoiseSibilanceScore.store (match.sibilanceScore, std::memory_order_relaxed);
-                tameNoiseBreathScore.store (match.breathScore, std::memory_order_relaxed);
-                tameNoiseNormalScore.store (match.normalScore, std::memory_order_relaxed);
+                tameNoiseSibilanceScore.store (match.sibilanceScore, relaxed);
+                tameNoiseBreathScore.store (match.breathScore, relaxed);
+                tameNoiseNormalScore.store (match.normalScore, relaxed);
 
-                // Learnnerプラグインと同一のSensitivity閾値検知 (0.15 ~ 0.65, デフォルト0.5で0.40)
-                const float sensitivity = tameAmountNorm; // 0.0 ~ 1.0
-                const float threshold   = 0.65f - (sensitivity * 0.50f);
-
-                bool noiseActive = false;
-                if (match.sibilanceScore >= threshold) noiseActive = true;
-                if (match.breathScore    >= threshold) noiseActive = true;
-
-                tameNoiseTrigger.store (isTameNoiseOn && noiseActive, std::memory_order_relaxed);
-
-                // LED インジケーター強度 (検知時は閾値超過度に応じて瞬時に発光、その後滑らかに減衰)
-                const float maxNoise = std::max (match.sibilanceScore, match.breathScore);
-                const float targetLed = (isTameNoiseOn && noiseActive)
-                    ? std::min (1.0f, 0.45f + ((maxNoise - threshold) / (1.0f - threshold + 1e-4f)) * 0.55f)
-                    : 0.0f;
-
-                float currentLed = tameNoiseLedIntensity.load (std::memory_order_relaxed);
-                if (targetLed > currentLed)
-                    currentLed = targetLed;
-                else
-                    currentLed = std::max (0.0f, currentLed - 0.05f);
-                tameNoiseLedIntensity.store (currentLed, std::memory_order_relaxed);
+                const bool triggered = match.isNoiseDetected;
+                tameNoiseTrigger.store (triggered, relaxed);
+                tameNoiseLedIntensity.store (triggered ? 1.0f : 0.0f, relaxed);
             }
         }
         tameLastDawSample = monoDetectorInput;
 
-        // 4. 音質変化ゼロのサイドチェイン検出信号
-        // (検出器のみに100Hz HPFをかけ、低音吹かれ・ゴトつきによるポンピングを完全防止!)
-        float filteredDetector = monoDetectorInput;
+        // 4. サイドチェイン検出器パス
+        float detSignal = monoDetectorInput;
         if (isScFilterOn)
-            filteredDetector = sidechainDetectorHPF.processSample (filteredDetector);
+            detSignal = sidechainDetectorHPF.processSample (detSignal);
 
-        // 5. 検出器レベル測定 (RMS / Peak)
-        float detectedDb = -100.0f;
-        if (!isPeakDetection)
-        {
-            fastEnvelopeRms += rmsEnvCoeff * ((filteredDetector * filteredDetector) - fastEnvelopeRms);
-            const float linLevel = std::sqrt (std::max (0.0f, fastEnvelopeRms));
-            detectedDb = juce::Decibels::gainToDecibels (linLevel + 1e-6f, -100.0f);
-        }
-        else
-        {
-            const float absIn = std::abs (filteredDetector);
-            fastEnvelopePeak += peakEnvCoeff * (absIn - fastEnvelopePeak);
-            detectedDb = juce::Decibels::gainToDecibels (fastEnvelopePeak + 1e-6f, -100.0f);
-        }
+        // 5. エンベロープ検出 (RMS vs Peak)
+        const float sampleAbs = std::abs (detSignal);
+        fastEnvelopeRms  += rmsEnvCoeff  * (sampleAbs * sampleAbs - fastEnvelopeRms);
+        fastEnvelopePeak += peakEnvCoeff * (sampleAbs - fastEnvelopePeak);
 
-        // 6. TameNoise 連動レベラーゲイン計算
-        float targetGainDb = targetLevelDb - detectedDb;
-        targetGainDb = juce::jlimit (-rangeDb, +rangeDb, targetGainDb);
+        const float envVal = isPeakDetection ? fastEnvelopePeak : std::sqrt (std::max (1e-12f, fastEnvelopeRms));
+        const float envDb  = juce::Decibels::gainToDecibels (envVal, -100.0f);
 
-        // デジタルゼロ時の過大ゲイン上昇防止
-        constexpr float digitalZeroFloorDb = -72.0f;
-        const float activityWeight = juce::jlimit (0.0f, 1.0f, (detectedDb - digitalZeroFloorDb) / 12.0f);
-        targetGainDb *= activityWeight;
+        // 6. ゲイン補正計算
+        const float errorDb = targetLevelDb - envDb;
+        const float targetGainDb = juce::jlimit (-rangeDb, rangeDb, errorDb);
 
-        // TameNoise によるノイズ抑制リダクション (Learnner Sensitivity 方式)
-        const float sensitivity = tameAmountNorm;
-        const float threshold   = 0.65f - (sensitivity * 0.50f);
-
-        const float currSib   = tameNoiseSibilanceScore.load (std::memory_order_relaxed);
-        const float currBr    = tameNoiseBreathScore.load (std::memory_order_relaxed);
-        const bool isNoiseActive = isTameNoiseOn && (currSib >= threshold || currBr >= threshold);
+        // TameNoise 検出時のゲイン処理
+        const bool isNoiseActive = isTameNoiseOn && tameNoiseTrigger.load (relaxed);
+        float effectiveTargetGainDb = targetGainDb;
 
         if (isNoiseActive)
         {
-            // 1. ノイズ時はブースト（targetGainDb > 0）を抑制
-            if (targetGainDb > 0.0f)
-            {
-                const float maxNoise = std::max (currSib, currBr);
-                const float excessRatio = juce::jlimit (0.0f, 1.0f, (maxNoise - threshold) / (1.0f - threshold + 1e-4f));
-                targetGainDb *= std::max (0.0f, 1.0f - (0.6f + 0.4f * excessRatio));
-            }
-
-            // 2. ユーザー要望：TameNoise検出時はRange内の0dB以下に下げない（下限 0.0dB）
-            if (targetGainDb < 0.0f)
-                targetGainDb = 0.0f;
+            // ノイズ発生時は誤ブーストを遮断し、リダクション
+            effectiveTargetGainDb = std::min (targetGainDb, -rangeDb * tameAmountNorm);
         }
 
-        // 7. ゲインスムージング (アタック／リリースフィルター)
-        if (targetGainDb < currentSmoothedGainDb)
-        {
-            currentSmoothedGainDb += attackCoeff * (targetGainDb - currentSmoothedGainDb);
-        }
-        else
-        {
-            // リリース: 歯擦音または雑音検知時は専用の TameRelease (デフォルト100ms) 時定数で素早く戻す
-            float activeReleaseCoeff = releaseCoeff;
-            if (isNoiseActive || currSib >= threshold)
-                activeReleaseCoeff = tameReleaseCoeff;
-
-            currentSmoothedGainDb += activeReleaseCoeff * (targetGainDb - currentSmoothedGainDb);
-        }
+        const float coeff = isNoiseActive ? tameReleaseCoeff
+                                          : (effectiveTargetGainDb < currentSmoothedGainDb ? attackCoeff : releaseCoeff);
+        currentSmoothedGainDb += coeff * (effectiveTargetGainDb - currentSmoothedGainDb);
 
         // 7. 出力ゲインの適用 (Lookahead 原音スルーバッファから取得)
         const float outG = juce::Decibels::decibelsToGain (smoothedOutputGainDb.getNextValue());
@@ -633,7 +457,7 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         // 8. TameNoise ソロ試聴 (LISTEN ボタン)
         if (isTameListenOn)
         {
-            const bool active = tameNoiseTrigger.load (std::memory_order_relaxed);
+            const bool active = tameNoiseTrigger.load (relaxed);
             tameAuditionGain.setTargetValue (active ? 1.0f : 0.0f);
             const float soloG = tameAuditionGain.getNextValue();
             finalL *= soloG;
@@ -682,21 +506,21 @@ void AutoLevelerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     const float blockRmsOut = (numChannels > 1) ? 0.5f * (buffer.getRMSLevel(0, 0, numSamples) + buffer.getRMSLevel(1, 0, numSamples))
                                                 : buffer.getRMSLevel(0, 0, numSamples);
 
-    latestInputPeak.store  (blockMaxInputPeak,  std::memory_order_relaxed);
-    latestOutputPeak.store (blockMaxOutputPeak, std::memory_order_relaxed);
+    latestInputPeak.store  (blockMaxInputPeak,  relaxed);
+    latestOutputPeak.store (blockMaxOutputPeak, relaxed);
 
     const float meterInCoeff  = 1.0f - std::exp (-static_cast<float>(numSamples) / (static_cast<float>(currentSampleRate) * 0.15f));
     const float meterOutCoeff = 1.0f - std::exp (-static_cast<float>(numSamples) / (static_cast<float>(currentSampleRate) * 0.15f));
     smoothedRmsIn  += meterInCoeff  * (blockRmsIn  - smoothedRmsIn);
     smoothedRmsOut += meterOutCoeff * (blockRmsOut - smoothedRmsOut);
-    latestInputRms.store  (smoothedRmsIn,  std::memory_order_relaxed);
-    latestOutputRms.store (smoothedRmsOut, std::memory_order_relaxed);
+    latestInputRms.store  (smoothedRmsIn,  relaxed);
+    latestOutputRms.store (smoothedRmsOut, relaxed);
 
     const float vuCoeff = 1.0f - std::exp (-static_cast<float>(numSamples) / (static_cast<float>(currentSampleRate) * 0.30f));
     smoothedVuIn  += vuCoeff * (blockRmsIn  - smoothedVuIn);
     smoothedVuOut += vuCoeff * (blockRmsOut - smoothedVuOut);
-    latestInputVu.store  (smoothedVuIn,  std::memory_order_relaxed);
-    latestOutputVu.store (smoothedVuOut, std::memory_order_relaxed);
+    latestInputVu.store  (smoothedVuIn,  relaxed);
+    latestOutputVu.store (smoothedVuOut, relaxed);
 }
 
 int AutoLevelerAudioProcessor::readVisualData (VisualDataPoint* destination, int maxPointsToRead)
@@ -737,6 +561,36 @@ void AutoLevelerAudioProcessor::setStateInformation (const void* data, int sizeI
     std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
     if (xmlState != nullptr && xmlState->hasTagName (apvts.state.getType()))
         apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout AutoLevelerAudioProcessor::createParameterLayout()
+{
+    using Float  = juce::AudioParameterFloat;
+    using Bool   = juce::AudioParameterBool;
+    using Choice = juce::AudioParameterChoice;
+    const auto dB = juce::AudioParameterFloatAttributes().withLabel ("dB");
+    const auto id = [] (const char* paramID) { return juce::ParameterID { paramID, 1 }; };
+
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    layout.add (std::make_unique<Float>  (id (ParameterIDs::inputGain),       "Input Gain",       juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),   0.0f, dB),
+                std::make_unique<Float>  (id (ParameterIDs::targetLevel),     "Target Level",     juce::NormalisableRange<float> (-36.0f,  0.0f, 0.1f), -12.0f, dB),
+                std::make_unique<Float>  (id (ParameterIDs::range),           "Range",            juce::NormalisableRange<float> (  0.0f, 15.0f, 0.1f),   6.0f, dB),
+                std::make_unique<Float>  (id (ParameterIDs::speed),           "Speed",            juce::NormalisableRange<float> (  0.0f, 100.0f, 0.1f), 50.0f,
+                                          juce::AudioParameterFloatAttributes().withLabel ("%")),
+                std::make_unique<Float>  (id (ParameterIDs::outputGain),      "Output Gain",      juce::NormalisableRange<float> (-18.0f, 18.0f, 0.1f),   0.0f, dB),
+                std::make_unique<Bool>   (id (ParameterIDs::lookaheadEnable), "Lookahead",        true),
+                std::make_unique<Choice> (id (ParameterIDs::detectionMode),   "Detection Mode",   juce::StringArray { "RMS", "Peak" }, 0),
+                std::make_unique<Choice> (id (ParameterIDs::timingMode),      "Timing Mode",      juce::StringArray { "Free (ms)", "Sync (BPM)" }, 0),
+                std::make_unique<Choice> (id (ParameterIDs::syncSpeed),       "Sync Speed",       juce::StringArray { "Fast", "Mid", "Slow" }, 1),
+                std::make_unique<Choice> (id (ParameterIDs::meterMode),       "Meter Mode",       juce::StringArray { "Peak", "RMS", "VU" }, 0),
+                std::make_unique<Bool>   (id (ParameterIDs::guiEnable),       "GUI Animation",    true),
+                std::make_unique<Bool>   (id (ParameterIDs::bypass),          "Bypass",           false),
+                std::make_unique<Bool>   (id (ParameterIDs::tameNoiseEnable), "TameNoise Enable", true),
+                std::make_unique<Bool>   (id (ParameterIDs::tameNoiseListen), "TameNoise Listen", false),
+                std::make_unique<Float>  (id (ParameterIDs::tameNoiseAmount), "TameNoise Amount", juce::NormalisableRange<float> (  0.0f, 100.0f, 1.0f), 30.0f,
+                                          juce::AudioParameterFloatAttributes().withLabel ("%")),
+                std::make_unique<Bool>   (id (ParameterIDs::scFilterEnable),  "SC Filter 100Hz",  true));
+    return layout;
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

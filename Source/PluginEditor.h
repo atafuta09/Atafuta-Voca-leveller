@@ -1,11 +1,7 @@
 #pragma once
 
-#if __has_include(<JuceHeader.h>)
- #include <JuceHeader.h>
-#else
- #include <juce_gui_basics/juce_gui_basics.h>
- #include <juce_audio_processors/juce_audio_processors.h>
-#endif
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 
 #include "PluginProcessor.h"
 #include "ModernDarkLookAndFeel.h"
@@ -24,16 +20,10 @@ public:
 
     void pushData (const VisualDataPoint* points, int numPoints);
     void setVisualParams (float targetDb, float rangeDb);
-    void clear();
     void setGuiEnabled (bool enabled);
 
     void paint (juce::Graphics& g) override;
     void resized() override;
-
-    // TARGET LEVEL スライダーと水平同期するためのY座標マッピング取得
-    float getTargetLineY() const;
-    float getChartTop() const    { return chartTop; }
-    float getChartBottom() const { return chartBottom; }
 
 private:
     static constexpr int maxHistoryPoints = 400; // 描画履歴ポイント数
@@ -66,7 +56,6 @@ public:
     void setGuiEnabled (bool enabled);
 
     void paint (juce::Graphics& g) override;
-    void resized() override;
 
 private:
     int   currentMeterMode = 0; // 0: Peak, 1: RMS, 2: VU
@@ -106,8 +95,6 @@ public:
         }
     }
 
-    float getInputMeterLevel() const { return currentInputDb; }
-
     void setGuiEnabled (bool enabled)
     {
         if (guiEnabled != enabled)
@@ -116,8 +103,6 @@ public:
             repaint();
         }
     }
-
-    bool isGuiEnabled() const { return guiEnabled; }
 
 private:
     float currentInputDb = -60.0f;
@@ -253,7 +238,6 @@ public:
 private:
     void updateTimerState();
     void updateSyncControlState();
-    void syncTargetSliderLayout();
 
     AutoLevelerAudioProcessor& audioProcessor;
 

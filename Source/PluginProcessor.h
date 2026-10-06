@@ -1,13 +1,10 @@
 #pragma once
 
-#if __has_include(<JuceHeader.h>)
- #include <JuceHeader.h>
-#else
- #include <juce_audio_processors/juce_audio_processors.h>
- #include <juce_dsp/juce_dsp.h>
-#endif
-
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
 #include "AudioFingerprint.h"
+
+#include <array>
 #include <vector>
 #include <atomic>
 #include <cmath>
@@ -57,7 +54,16 @@ struct TimingInfo
 };
 
 /**
- * ファクトリープリセット情報
+ * アタック・リリースの時定数のみ (オーディオスレッド用、メモリ確保なし)
+ */
+struct TimingMs
+{
+    float attackMs;
+    float releaseMs;
+};
+
+/**
+ * プリセット情報
  */
 struct Preset
 {
@@ -80,10 +86,9 @@ class AutoLevelerAudioProcessor : public juce::AudioProcessor
 {
 public:
     AutoLevelerAudioProcessor();
-    ~AutoLevelerAudioProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override;
+    void releaseResources() override {}
 
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
@@ -94,10 +99,10 @@ public:
 
     const juce::String getName() const override;
 
-    bool acceptsMidi() const override;
-    bool producesMidi() const override;
-    bool isMidiEffect() const override;
-    double getTailLengthSeconds() const override;
+    bool acceptsMidi() const override           { return false; }
+    bool producesMidi() const override          { return false; }
+    bool isMidiEffect() const override          { return false; }
+    double getTailLengthSeconds() const override { return 0.0; }
 
     int getNumPrograms() override;
     int getCurrentProgram() override;
@@ -141,65 +146,68 @@ public:
     void loadUserPresets();
     void saveUserPresetsToFile();
 
-    // Speed値、Timingモード (Free / BPM Sync)、SyncSpeed (Fast:0, Mid:1, Slow:2) からAttack/Release時定数計算
-    static inline TimingInfo calculateTiming (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm) noexcept
+    // Speed値、Timingモード (Free / BPM Sync)、SyncSpeed (Fast:0, Mid:1, Slow:2) からAttack/Release時定数 (ms) を計算
+    // オーディオスレッド用 (ヒープ確保なし)
+    static inline TimingMs calculateTimingMs (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm) noexcept
     {
-        TimingInfo info;
-        const float bpm = (hostBpm >= 20.0f && hostBpm <= 400.0f) ? hostBpm : 120.0f;
-        const float quarterNoteMs = (60.0f / bpm) * 1000.0f;
-
         if (!isSyncMode)
         {
             // Free モード (ミリ秒)
             const float speedNorm = juce::jlimit (0.0f, 1.0f, speedVal * 0.01f);
-            info.attackMs  = 150.0f * std::pow (8.0f / 150.0f, speedNorm);
-            info.releaseMs = 800.0f * std::pow (45.0f / 800.0f, speedNorm);
-            info.attackLabel  = juce::String (juce::roundToInt (info.attackMs)) + " ms";
-            info.releaseLabel = juce::String (juce::roundToInt (info.releaseMs)) + " ms";
-            info.modeName     = "Free";
+            return { 150.0f * std::pow (8.0f / 150.0f, speedNorm),
+                     800.0f * std::pow (45.0f / 800.0f, speedNorm) };
         }
-        else
+
+        const float bpm = (hostBpm >= 20.0f && hostBpm <= 400.0f) ? hostBpm : 120.0f;
+        const float quarterNoteMs = (60.0f / bpm) * 1000.0f;
+
+        switch (syncSpeedIndex)
         {
-            // BPM Sync モード: Fast(0), Mid(1), Slow(2)
-            switch (syncSpeedIndex)
-            {
-                case 0:
-                    info.attackMs  = quarterNoteMs * (1.0f / 16.0f);
-                    info.releaseMs = quarterNoteMs * (1.0f / 4.0f);
-                    info.attackLabel  = "1/64 (" + juce::String (juce::roundToInt (info.attackMs)) + "ms)";
-                    info.releaseLabel = "1/16 (" + juce::String (juce::roundToInt (info.releaseMs)) + "ms)";
-                    info.modeName     = "Fast";
-                    break;
-
-                case 2:
-                    info.attackMs  = quarterNoteMs * (1.0f / 4.0f);
-                    info.releaseMs = quarterNoteMs * 1.0f;
-                    info.attackLabel  = "1/16 (" + juce::String (juce::roundToInt (info.attackMs)) + "ms)";
-                    info.releaseLabel = "1/4 (" + juce::String (juce::roundToInt (info.releaseMs)) + "ms)";
-                    info.modeName     = "Slow";
-                    break;
-
-                case 1:
-                default:
-                    info.attackMs  = quarterNoteMs * (1.0f / 8.0f);
-                    info.releaseMs = quarterNoteMs * 0.5f;
-                    info.attackLabel  = "1/32 (" + juce::String (juce::roundToInt (info.attackMs)) + "ms)";
-                    info.releaseLabel = "1/8 (" + juce::String (juce::roundToInt (info.releaseMs)) + "ms)";
-                    info.modeName     = "Mid";
-                    break;
-            }
+            case 0:  return { quarterNoteMs / 16.0f, quarterNoteMs / 4.0f }; // Fast: 1/64, 1/16
+            case 2:  return { quarterNoteMs / 4.0f,  quarterNoteMs };        // Slow: 1/16, 1/4
+            default: return { quarterNoteMs / 8.0f,  quarterNoteMs / 2.0f }; // Mid:  1/32, 1/8
         }
+    }
+
+    // UI 表示用: 時定数に加えてラベル文字列を組み立てる (メッセージスレッド専用)
+    static inline TimingInfo calculateTiming (float speedVal, bool isSyncMode, int syncSpeedIndex, float hostBpm)
+    {
+        const auto ms = calculateTimingMs (speedVal, isSyncMode, syncSpeedIndex, hostBpm);
+        TimingInfo info;
+        info.attackMs  = ms.attackMs;
+        info.releaseMs = ms.releaseMs;
+
+        const juce::String attackMsText  = juce::String (juce::roundToInt (ms.attackMs));
+        const juce::String releaseMsText = juce::String (juce::roundToInt (ms.releaseMs));
+
+        if (!isSyncMode)
+        {
+            info.attackLabel  = attackMsText + " ms";
+            info.releaseLabel = releaseMsText + " ms";
+            info.modeName     = "Free";
+            return info;
+        }
+
+        // Fast(0), Mid(1), Slow(2)。範囲外は calculateTimingMs と同じく Mid 扱い
+        const int idx = (syncSpeedIndex == 0 || syncSpeedIndex == 2) ? syncSpeedIndex : 1;
+        const char* modeNames[]    = { "Fast", "Mid", "Slow" };
+        const char* attackNotes[]  = { "1/64", "1/32", "1/16" };
+        const char* releaseNotes[] = { "1/16", "1/8",  "1/4"  };
+
+        info.attackLabel  = juce::String (attackNotes[idx])  + " (" + attackMsText  + "ms)";
+        info.releaseLabel = juce::String (releaseNotes[idx]) + " (" + releaseMsText + "ms)";
+        info.modeName     = modeNames[idx];
         return info;
     }
 
-    static constexpr float lookaheadMs = 5.0f; // 5ms Lookahead
+    static constexpr float lookaheadMs = 22.5f; // 22.5ms Lookahead
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     juce::AudioProcessorValueTreeState apvts;
 
-    // パラメータポインタ
+    // パラメーター参照ポインタ (オーディオスレッド用)
     std::atomic<float>* inputGainParam       = nullptr;
     std::atomic<float>* targetLevelParam     = nullptr;
     std::atomic<float>* rangeParam           = nullptr;
@@ -209,7 +217,6 @@ private:
     std::atomic<float>* detectionModeParam   = nullptr;
     std::atomic<float>* timingModeParam      = nullptr;
     std::atomic<float>* syncSpeedParam       = nullptr;
-    std::atomic<float>* meterModeParam       = nullptr;
     std::atomic<float>* guiEnableParam       = nullptr;
     std::atomic<float>* bypassParam          = nullptr;
 
@@ -218,15 +225,17 @@ private:
     std::atomic<float>* tameNoiseAmountParam = nullptr;
     std::atomic<float>* scFilterEnableParam  = nullptr;
 
-    // プリセット管理
+    // プリセット管理 (ユーザー保存プリセットのみ)
     std::vector<Preset> presets;
     int currentProgram = 0;
 
     // スムージング用
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedInputGainDb;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedOutputGainDb;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> bypassMix; // 0 = 処理音, 1 = ドライ
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> lookaheadMix; // 0 = 遅延なし, 1 = 先読み
 
-    // Lookahead ディレイバッファ (原音スルー用)
+    // Lookahead ディレイ (原音スルー用)
     juce::AudioBuffer<float> delayBuffer;
     int delayBufferSize = 0;
     int delayBufferWritePos = 0;

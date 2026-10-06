@@ -4,13 +4,25 @@ cmake_minimum_required(VERSION 3.22)
 # Atafuta09Leveler - Vocal Dynamics Rider Plugin (v1.0.5)
 # With AI TameNoise Detector & Zero-Coloration Sidechain HPF
 # ==============================================================================
-project(Atafuta09Leveler VERSION 1.0.5 LANGUAGES C CXX)
+
+# macOS: Apple Silicon / Intel 両対応のユニバーサルバイナリ、対応 OS は macOS 12 以降
+if(APPLE)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS build architectures")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version")
+endif()
+
+# バージョンの正本はリポジトリ直下の VERSION ファイル
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" ATAFUTA_VERSION LIMIT_COUNT 1)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS VERSION)
+project(Atafuta09Leveler VERSION ${ATAFUTA_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ビルド後にDAWのVST3フォルダ (C:\Program Files\Common Files\VST3) へ自動コピーする設定
-option(COPY_PLUGIN_AFTER_BUILD "Copy plugin to system VST3 directory after build" TRUE)
+# ビルド後にシステムのプラグインフォルダへ自動コピーする設定
+#   Windows: C:\Program Files\Common Files\VST3
+#   macOS  : ~/Library/Audio/Plug-Ins/VST3 および ~/Library/Audio/Plug-Ins/Components (AU)
+option(COPY_PLUGIN_AFTER_BUILD "Copy plugin to system directory after build" FALSE)
 
 # ==============================================================================
 # JUCE フレームワークの取得・設定
@@ -35,20 +47,27 @@ if(NOT TARGET juce::juce_core)
 endif()
 
 # ==============================================================================
-# プラグインターゲットの定義 (Windows: VST3 / macOS: VST3 & AU)
+# プラグインターゲットの定義 (Windows: VST3 / macOS: VST3 + AU)
 # ==============================================================================
+if(APPLE)
+    set(ATAFUTA_PLUGIN_FORMATS VST3 AU)
+else()
+    set(ATAFUTA_PLUGIN_FORMATS VST3)
+endif()
+
 juce_add_plugin(AutoLeveler
-    COMPANY_NAME "AtafutaAudio"
-    BUNDLE_ID "com.atafuta.atafuta09leveler"
+    COMPANY_NAME "Atafuta09"
     PLUGIN_MANUFACTURER_CODE Ataf
     PLUGIN_CODE AtLv
-    FORMATS VST3 AU
+    FORMATS ${ATAFUTA_PLUGIN_FORMATS}
+    BUNDLE_ID "com.atafuta09.atafuta09leveler"
+    AU_MAIN_TYPE aufx
+    VST3_CATEGORIES Fx Dynamics
     PRODUCT_NAME "Atafuta09Leveler"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
-    AU_MAIN_TYPE aufx
     COPY_PLUGIN_AFTER_BUILD ${COPY_PLUGIN_AFTER_BUILD}
 )
 
@@ -66,7 +85,6 @@ target_sources(AutoLeveler PRIVATE
 target_link_libraries(AutoLeveler PRIVATE
     juce::juce_audio_utils
     juce::juce_dsp
-    juce::juce_gui_extra
     PUBLIC
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags

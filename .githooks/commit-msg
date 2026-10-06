@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# commit-msg フック（任意導入）
+#
+# 目的: commit-and-git スキルのコミットメッセージ規約を、エージェントだけでなく
+#       ユーザーの手動コミットも含めて機械的に検証する。
+# 参照: .codex/skills/commit-and-git/SKILL.md
+#
+# 導入（このリポジトリ単位・任意）:
+#     git config core.hooksPath .githooks
+# 解除:
+#     git config --unset core.hooksPath
+#
+# 注: .claude/settings.json の PreToolUse hook は「エージェント経由の Git」を守る。
+#     こちらは「すべての commit」を守る補完レイヤ。
+
+msg_file="$1"
+
+# コメント行・空行を除いた最初の行を件名とみなす
+subject="$(grep -vE '^[[:space:]]*#' "$msg_file" | grep -vE '^[[:space:]]*$' | head -n1)"
+
+types='feat|fix|perf|refactor|docs|style|test|chore|ci|build|merge'
+
+fail() {
+  echo "commit-msg ブロック: $1" >&2
+  echo "規約: type(scope): 説明   例) feat(api): 認証を追加 / merge(api): 認証修正を反映" >&2
+  echo "詳細は commit-and-git スキルを参照してください。" >&2
+  exit 1
+}
+
+# 1. 件名フォーマット
+if ! printf '%s' "$subject" | grep -Eq "^(${types})(\([^)]+\))?: .+"; then
+  fail "件名が type(scope): 説明 の形式ではありません → '${subject}'"
+fi
+
+# 2. Co-Authored-By 禁止
+if grep -Eiq 'Co-Authored-By' "$msg_file"; then
+  fail "Co-Authored-By を含めないでください"
+fi
+
+# 3. merge 件名に PR/Issue 参照（#番号）を含めない
+if printf '%s' "$subject" | grep -Eq '^merge' && printf '%s' "$subject" | grep -Eq '#[0-9]+'; then
+  fail "merge 件名に #番号 などの参照を含めないでください"
+fi
+
+# 4. scope のバリデーション
+scope="$(printf '%s' "$subject" | sed -nE "s/^(${types})\(([^)]+)\): .*/\2/p")"
+if [ -n "$scope" ]; then
+  case "$scope" in
+    */*)
+      fail "scope には apps/dashboard のような階層ではなく、dashboard のような leaf 名を使ってください"
+      ;;
+  esac
+
+  case "$scope" in
+    apps|packages|workspace|design|agents)
+      fail "scope に '${scope}' は使えません。repo / .agents / .claude / leaf 名を使ってください"
+      ;;
+  esac
+fi
+
+# 5. 件名への emoji 混入禁止
+# macOS の BSD grep でも動くよう、UTF-8 の対象バイト列だけを LC_ALL=C で検査する。
+if printf '%s' "$subject" | LC_ALL=C grep -Eq $'\xF0\x9F|\xE2\x9C|\xE2\x9D|\xEF\xB8\x8F'; then
+  fail "件名に emoji を含めないでください"
+fi
+
+exit 0
