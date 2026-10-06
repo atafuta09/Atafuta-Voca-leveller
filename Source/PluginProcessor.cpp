@@ -29,16 +29,7 @@ AutoLevelerAudioProcessor::AutoLevelerAudioProcessor()
     tameNoiseAmountParam = apvts.getRawParameterValue (ParameterIDs::tameNoiseAmount);
     scFilterEnableParam  = apvts.getRawParameterValue (ParameterIDs::scFilterEnable);
 
-    // ファクトリープリセット (TameNoise & SC Filter 対応)
-        presets.push_back ({ "Default", 0.0f, -12.0f, 6.0f, 50.0f, 0.0f, true, true, 50.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Synth Vocal", 0.0f, -14.0f, 6.0f, 75.0f, 0.0f, true, true, 60.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Gentle Vocal Ride", 0.0f, -14.0f, 4.0f, 35.0f, 0.0f, true, true, 40.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Aggressive Leveler", 0.0f, -10.0f, 10.0f, 75.0f, 0.0f, true, true, 70.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Podcast / Spoken", 0.0f, -16.0f, 8.0f, 60.0f, 0.0f, true, true, 60.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Ballad Dynamic", 0.0f, -18.0f, 8.0f, 30.0f, 0.0f, true, true, 35.0f, true, 0, 0, 1 });
-    presets.push_back ({ "Peak Catching Leveler", 0.0f, -12.0f, 6.0f, 70.0f, 0.0f, true, true, 55.0f, true, 1, 0, 1 });
-    presets.push_back ({ "Broadcast Rider", 0.0f, -14.0f, 5.0f, 45.0f, 0.0f, true, true, 50.0f, true, 0, 1, 1 });
-
+    // プリセット機能: ユーザー保存プリセットのみロード (初期ファクトリープリセットはなし)
     loadUserPresets();
 
     // AI TameNoise 検出器の初期化 ＆ ユーザー学習プロファイルの自動ロード
@@ -67,7 +58,9 @@ int AutoLevelerAudioProcessor::getNumPrograms()
 
 int AutoLevelerAudioProcessor::getCurrentProgram()
 {
-    return currentProgram;
+    if (presets.empty())
+        return 0;
+    return juce::jlimit (0, static_cast<int>(presets.size()) - 1, currentProgram);
 }
 
 void AutoLevelerAudioProcessor::setCurrentProgram (int index)
@@ -160,7 +153,7 @@ void AutoLevelerAudioProcessor::saveUserPresetsToFile()
     auto file = userDir.getChildFile ("UserPresets.xml");
 
     auto rootXml = std::make_unique<juce::XmlElement> ("AutoLevelerUserPresets");
-    for (size_t i = 8; i < presets.size(); ++i)
+    for (size_t i = 0; i < presets.size(); ++i)
     {
         const auto& p = presets[i];
         auto* child = rootXml->createNewChildElement ("Preset");

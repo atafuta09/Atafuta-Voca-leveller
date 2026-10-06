@@ -735,6 +735,7 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
         audioProcessor.getAPVTS(), ParameterIDs::lookaheadEnable, lookaheadButton);
 
     guiEnableButton.setButtonText ("GUI RENDER");
+    guiEnableButton.setToggleState (true, juce::dontSendNotification);
     addAndMakeVisible (guiEnableButton);
     guiEnableButton.onClick = [this]
     {
@@ -811,11 +812,12 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
 
     // --- 10. トップヘッダー新設コントロール (プリセット, 保存, ズーム, カラー, X / YT) ---
     // プリセットセレクター
+    presetBox.setTextWhenNothingSelected ("(No Presets)");
     refreshPresetBox();
     presetBox.onChange = [this]
     {
         const int pIdx = presetBox.getSelectedId() - 1;
-        if (pIdx >= 0)
+        if (pIdx >= 0 && pIdx < static_cast<int>(audioProcessor.getPresets().size()))
         {
             audioProcessor.setCurrentProgram (pIdx);
             updateSyncControlState();
@@ -916,6 +918,11 @@ AutoLevelerAudioProcessorEditor::AutoLevelerAudioProcessorEditor (AutoLevelerAud
     setSize (1000, 580);
 
     updateSyncControlState();
+
+    // 起動時は確実に GUI RENDER を ON に設定
+    if (auto* param = audioProcessor.getAPVTS().getParameter (ParameterIDs::guiEnable))
+        param->setValueNotifyingHost (1.0f);
+    guiEnableButton.setToggleState (true, juce::dontSendNotification);
     updateTimerState();
 
     // 初回から即座に滑らかに描画を開始
@@ -932,9 +939,21 @@ void AutoLevelerAudioProcessorEditor::refreshPresetBox()
 {
     presetBox.clear (juce::dontSendNotification);
     const auto& presetsList = audioProcessor.getPresets();
+    if (presetsList.empty())
+    {
+        presetBox.setTextWhenNothingSelected ("(No Presets)");
+        presetBox.setSelectedId (0, juce::dontSendNotification);
+        return;
+    }
+
     for (size_t i = 0; i < presetsList.size(); ++i)
         presetBox.addItem (presetsList[i].name, static_cast<int>(i + 1));
-    presetBox.setSelectedId (audioProcessor.getCurrentProgram() + 1, juce::dontSendNotification);
+
+    const int curProg = audioProcessor.getCurrentProgram();
+    if (curProg >= 0 && curProg < static_cast<int>(presetsList.size()))
+        presetBox.setSelectedId (curProg + 1, juce::dontSendNotification);
+    else
+        presetBox.setSelectedId (1, juce::dontSendNotification);
 }
 
 void AutoLevelerAudioProcessorEditor::updateThemeColours()
@@ -1025,6 +1044,7 @@ void AutoLevelerAudioProcessorEditor::updateTimerState()
     waveformComponent.setGuiEnabled (isGuiOn);
     slimMeterComponent.setGuiEnabled (isGuiOn);
     targetLevelSlider.setGuiEnabled (isGuiOn);
+    repaint();
 }
 
 void AutoLevelerAudioProcessorEditor::visibilityChanged()

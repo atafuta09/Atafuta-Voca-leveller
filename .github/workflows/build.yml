@@ -1,0 +1,89 @@
+name: Build Plugins (Windows & macOS)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows (VST3)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake (Visual Studio 2022)
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DCOPY_PLUGIN_AFTER_BUILD=FALSE
+
+      - name: Build Plugin (Release)
+        run: |
+          cmake --build build --config Release
+
+      - name: Package Windows VST3
+        shell: pwsh
+        run: |
+          $vst3 = Get-ChildItem -Path "build" -Filter "Atafuta09Leveler.vst3" -Recurse -Directory | Select-Object -First 1
+          if (-not $vst3) {
+              Write-Error "Atafuta09Leveler.vst3 not found in build directory"
+              exit 1
+          }
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
+          Compress-Archive -Path $vst3.FullName -DestinationPath "dist/Atafuta09Leveler-Windows-vst3.zip" -Force
+          Write-Host "Packaged Windows VST3: dist/Atafuta09Leveler-Windows-vst3.zip"
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Atafuta09Leveler-Windows-VST3
+          path: dist/Atafuta09Leveler-Windows-vst3.zip
+
+  build-macos:
+    name: Build macOS (Universal VST3 & AU)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake (Xcode Universal Binary)
+        run: |
+          cmake -B build -G Xcode \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="10.13" \
+            -DCOPY_PLUGIN_AFTER_BUILD=FALSE
+
+      - name: Build Plugin (Release)
+        run: |
+          cmake --build build --config Release
+
+      - name: Package macOS Plugins (VST3 & AU)
+        run: |
+          mkdir -p dist
+          VST3_PATH=$(find build -name "Atafuta09Leveler.vst3" -type d | head -n 1)
+          AU_PATH=$(find build -name "Atafuta09Leveler.component" -type d | head -n 1)
+          
+          if [ -z "$VST3_PATH" ] || [ -z "$AU_PATH" ]; then
+            echo "Error: Plugins not found"
+            exit 1
+          fi
+
+          mkdir -p stage/Atafuta09Leveler-macOS
+          cp -R "$VST3_PATH" stage/Atafuta09Leveler-macOS/
+          cp -R "$AU_PATH" stage/Atafuta09Leveler-macOS/
+          
+          cd stage
+          zip -r -y ../dist/Atafuta09Leveler-macOS-Universal.zip Atafuta09Leveler-macOS
+          cd ..
+          echo "Packaged macOS plugins: dist/Atafuta09Leveler-macOS-Universal.zip"
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Atafuta09Leveler-macOS-Universal
+          path: dist/Atafuta09Leveler-macOS-Universal.zip

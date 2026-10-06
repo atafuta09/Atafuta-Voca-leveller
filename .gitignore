@@ -1,22 +1,39 @@
-# Build artifact directory (JUCE, CMake, Visual Studio)
-build/
-build_ninja/
+# Build directories & CMake output
+build*/
+cmake-build-*/
 bin/
+JUCE/
+juceaide/
 
-# Visual Studio / IDE temporary files
+# Visual Studio & IDE temporary files
 .vs/
 *.user
 *.suo
 *.VC.db
 *.sln.docstates
+.vscode/
+.idea/
+*.xcodeproj/
+*.xcworkspace/
 
-# JUCE generated temporary files
-juceaide/
+# Python & AI model training artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.pt.bak
+*.onnx.bak
 
-# OS generated files
+# OS specific files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# Sub-repositories / temporary folders
-Atafuta-Vocal-Leveler/

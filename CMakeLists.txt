@@ -35,18 +35,20 @@ if(NOT TARGET juce::juce_core)
 endif()
 
 # ==============================================================================
-# プラグインターゲットの定義 (VST3)
+# プラグインターゲットの定義 (Windows: VST3 / macOS: VST3 & AU)
 # ==============================================================================
 juce_add_plugin(AutoLeveler
     COMPANY_NAME "AtafutaAudio"
+    BUNDLE_ID "com.atafuta.atafuta09leveler"
     PLUGIN_MANUFACTURER_CODE Ataf
     PLUGIN_CODE AtLv
-    FORMATS VST3
+    FORMATS VST3 AU
     PRODUCT_NAME "Atafuta09Leveler"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
+    AU_MAIN_TYPE aufx
     COPY_PLUGIN_AFTER_BUILD ${COPY_PLUGIN_AFTER_BUILD}
 )
 
