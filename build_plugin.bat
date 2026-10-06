@@ -19,8 +19,12 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo === Deploying VST3 to System Directory ===
 if exist "build_win\AutoLeveler_artefacts\Release\VST3\Atafuta09Leveler.vst3" (
-    xcopy /E /I /Y /Q "build_win\AutoLeveler_artefacts\Release\VST3\Atafuta09Leveler.vst3" "C:\Program Files\Common Files\VST3\Atafuta09Leveler.vst3"
-    echo [SUCCESS] Deployed to "C:\Program Files\Common Files\VST3\Atafuta09Leveler.vst3"
+    powershell -NoProfile -Command "Copy-Item -Path 'build_win\AutoLeveler_artefacts\Release\VST3\Atafuta09Leveler.vst3\*' -Destination 'C:\Program Files\Common Files\VST3\Atafuta09Leveler.vst3\' -Recurse -Force"
+    if %ERRORLEVEL% NEQ 0 (
+        echo [ERROR] Failed to copy VST3 bundle. Please ensure your DAW is closed!
+    ) else (
+        echo [SUCCESS] Deployed to "C:\Program Files\Common Files\VST3\Atafuta09Leveler.vst3"
+    )
 ) else (
     echo [WARNING] VST3 bundle not found in build_win artefacts.
 )
